@@ -1,0 +1,10 @@
+# Generated output — contains embedded personal financial data
+dashboard.html
+
+# Personal financial data exports
+Balances_*.csv
+Transactions_*.csv
+
+# Claude Code session files
+.claude/settings.local.json
+.claude/plans/
