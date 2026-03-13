@@ -134,3 +134,13 @@ body {
 .tx-row-anim {
   animation: txRowIn 0.22s ease both;
 }
+
+/* ============================================================
+   Sidebar offset + mobile bottom nav spacing
+   ============================================================ */
+@media (min-width: 768px) {
+  .md-sidebar-offset { margin-left: 240px; }
+}
+@media (max-width: 767px) {
+  .main-content { padding-bottom: 80px; }
+}
