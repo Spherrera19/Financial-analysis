@@ -1,4 +1,3 @@
-import React from 'react';
 import { CollapsibleCard } from '../components/cards';
 import { SpendingDonut, CategoryBar } from '../components/charts';
 import type { DashboardPayload, PeriodKey } from '../types';

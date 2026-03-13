@@ -1,4 +1,3 @@
-import React from 'react';
 import { KpiCard, CollapsibleCard } from '../components/cards';
 import { SankeyChart } from '../components/charts';
 import { AccountList } from '../components/tables';

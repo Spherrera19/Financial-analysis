@@ -1,4 +1,3 @@
-import React from 'react';
 import { KpiCard } from '../components/cards';
 import { TransactionTable } from '../components/tables';
 import type { DashboardPayload, PeriodKey } from '../types';

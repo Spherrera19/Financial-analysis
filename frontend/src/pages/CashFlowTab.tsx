@@ -1,4 +1,3 @@
-import React from 'react';
 import { KpiCard, CollapsibleCard } from '../components/cards';
 import { FlowChart } from '../components/charts';
 import type { DashboardPayload, PeriodKey } from '../types';
