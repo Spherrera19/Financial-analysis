@@ -108,6 +108,23 @@ body {
   color: var(--accent-red);
 }
 
+/* ============================================================
+   Responsive Grid Helpers
+   ============================================================ */
+.grid-kpi { grid-template-columns: repeat(4, 1fr); }
+.grid-2   { grid-template-columns: repeat(2, 1fr); }
+.grid-3   { grid-template-columns: repeat(3, 1fr); }
+
+@media (max-width: 900px) {
+  .grid-kpi { grid-template-columns: repeat(2, 1fr); }
+  .grid-2   { grid-template-columns: 1fr; }
+  .grid-3   { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .grid-kpi { grid-template-columns: 1fr; }
+}
+
 /* TransactionTable staggered row fade-in */
 @keyframes txRowIn {
   from { opacity: 0; transform: translateY(4px); }
