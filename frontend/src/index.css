@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* ============================================================
+   CSS Custom Properties — Light Mode (default)
+   ============================================================ */
+:root {
+  /* Backgrounds */
+  --bg-base:         #f0f4f8;
+  --bg-surface:      rgba(255,255,255,0.8);
+  --bg-surface-2:    rgba(248,250,252,0.9);
+  --bg-glass:        rgba(255,255,255,0.65);
+  --bg-glass-border: rgba(255,255,255,0.9);
+
+  /* Text */
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+
+  /* Accents */
+  --accent-blue:   #2563eb;
+  --accent-green:  #16a34a;
+  --accent-red:    #dc2626;
+  --accent-purple: #9333ea;
+  --accent-yellow: #d97706;
+
+  /* Borders */
+  --border-subtle: rgba(148,163,184,0.2);
+  --border-focus:  #2563eb;
+
+  /* Shadows */
+  --shadow-glass: 0 8px 32px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-hover: 0 16px 48px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06);
+
+  /* Blur */
+  --blur-glass: 12px;
+}
+
+/* ============================================================
+   CSS Custom Properties — Dark Mode
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Backgrounds */
+    --bg-base:         #0f172a;
+    --bg-surface:      rgba(30,41,59,0.9);
+    --bg-surface-2:    rgba(15,23,42,0.8);
+    --bg-glass:        rgba(30,41,59,0.6);
+    --bg-glass-border: rgba(71,85,105,0.4);
+
+    /* Text */
+    --text-primary:   #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted:     #64748b;
+
+    /* Accents */
+    --accent-blue:   #60a5fa;
+    --accent-green:  #4ade80;
+    --accent-red:    #f87171;
+    --accent-purple: #c084fc;
+    --accent-yellow: #fbbf24;
+
+    /* Borders */
+    --border-subtle: rgba(71,85,105,0.3);
+    --border-focus:  #60a5fa;
+
+    /* Shadows */
+    --shadow-glass: 0 8px 32px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-hover: 0 16px 48px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.4);
+
+    /* Blur */
+    --blur-glass: 16px;
+  }
+}
+
+/* ============================================================
+   Base Styles
+   ============================================================ */
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ============================================================
+   Utility Classes
+   ============================================================ */
+.glass-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--bg-glass-border);
+  border-radius: 16px;
+  backdrop-filter: blur(var(--blur-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass));
+  box-shadow: var(--shadow-glass);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.glass-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.text-positive {
+  color: var(--accent-green);
+}
+
+.text-negative {
+  color: var(--accent-red);
+}
