@@ -12,20 +12,23 @@ interface KpiCardProps {
 const variantConfig = {
   positive: {
     textColor: 'var(--accent-green)',
-    borderColor: 'rgba(22, 163, 74, 0.3)',
   },
   negative: {
     textColor: 'var(--accent-red)',
-    borderColor: 'rgba(220, 38, 38, 0.3)',
   },
   special: {
     textColor: 'var(--accent-purple)',
-    borderColor: 'rgba(147, 51, 234, 0.3)',
   },
   neutral: {
     textColor: 'var(--text-primary)',
-    borderColor: 'var(--border-subtle)',
   },
+};
+
+const variantCssVar: Record<string, string> = {
+  positive: 'var(--accent-green)',
+  negative: 'var(--accent-red)',
+  special: 'var(--accent-purple)',
+  neutral: 'var(--accent-blue)',
 };
 
 export function KpiCard({
@@ -36,17 +39,15 @@ export function KpiCard({
   highlighted = false,
 }: KpiCardProps) {
   const config = variantConfig[variant];
-  const borderColor = highlighted ? config.borderColor : 'var(--border-subtle)';
+  const highlightedBorderColor = highlighted ? variantCssVar[variant] : 'var(--border-subtle)';
 
   return (
     <div
-      className="kpi-card"
+      className="kpi-card glass-card"
       style={{
         padding: '1.5rem',
-        backgroundColor: 'var(--bg-surface)',
-        border: `1px solid ${borderColor}`,
         borderRadius: '0.875rem',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+        border: `1px solid ${highlightedBorderColor}`,
         transition:
           'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
       }}
@@ -69,7 +70,7 @@ export function KpiCard({
       {/* Value with animation */}
       <motion.div
         key={value}
-        initial={{ opacity: 0, y: -4 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 40 }}
         style={{
