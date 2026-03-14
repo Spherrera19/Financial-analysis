@@ -14,9 +14,16 @@ The dashboard currently uses a glassmorphism aesthetic (translucent backgrounds,
 ## Task 1 — Design System Rewrite (`frontend/src/index.css`)
 
 ### Font
-- Add at the very top of `index.css`:
-  `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');`
-- Set `font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` on `body`
+Add Google Fonts via `<link>` tags in `frontend/index.html` (inside `<head>`) instead of `@import` in CSS. The `@import` approach blocks the CSS parser while fetching the font; `<link>` tags allow parallel fetching and are the Vite-idiomatic approach.
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+```
+
+- Set `font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` on `body` in `index.css`
+- Do **not** add an `@import` for Inter in `index.css`
 
 ### CSS Token Rename (semantic cleanup)
 Remove dead glassmorphism tokens and replace with solid-surface semantics across **all six theme blocks** (`:root`, `@media (prefers-color-scheme: dark)`, `[data-theme="light"]`, `[data-theme="dark"]`, `[data-theme="pastel"]`, `[data-theme="high-contrast"]`):
@@ -130,16 +137,30 @@ const [open, setOpen] = useState(false);
 const dropdownRef = useRef<HTMLDivElement>(null);
 ```
 
-**Click-outside handler:**
+**Click-outside + Escape handler:**
+
+Combine both interactions into one `useEffect` with a single unified handler:
+
 ```ts
 useEffect(() => {
-  function handleOutside(e: MouseEvent) {
-    if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+  function handleInteraction(e: MouseEvent | KeyboardEvent) {
+    if (e.type === 'keydown' && (e as KeyboardEvent).key === 'Escape') {
+      setOpen(false);
+      return;
+    }
+    if (e.type === 'mousedown' && dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)) {
       setOpen(false);
     }
   }
-  if (open) document.addEventListener('mousedown', handleOutside);
-  return () => document.removeEventListener('mousedown', handleOutside);
+  if (open) {
+    document.addEventListener('mousedown', handleInteraction);
+    document.addEventListener('keydown', handleInteraction);
+  }
+  return () => {
+    document.removeEventListener('mousedown', handleInteraction);
+    document.removeEventListener('keydown', handleInteraction);
+  };
 }, [open]);
 ```
 
@@ -169,7 +190,7 @@ The trigger button must meet the 44px touch-target minimum. Use `minHeight: 44` 
       position: 'absolute', top: 'calc(100% + 4px)', left: 0,
       background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
       borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-      minWidth: 160, zIndex: 100,
+      minWidth: 160, zIndex: 40,
       overflow: 'hidden',
     }}>
       {PERIOD_LABELS.map(({ key, label }) => (
@@ -193,6 +214,8 @@ The trigger button must meet the 44px touch-target minimum. Use `minHeight: 44` 
 ```
 
 **Dropdown positioning note:** The dropdown uses `left: 0` which works correctly since the trigger lives at the left side of the TopBar. On narrow viewports the TopBar has `padding: 0.75rem 1.5rem` so no viewport-edge clipping is expected.
+
+**Z-index rationale:** `zIndex: 40` is used (not 100) because the TopBar itself has `zIndex: 90` (sticky) and the TransactionModal overlay has `zIndex: 1000`. The dropdown only needs to clear other in-page content; the modal will always render above it. Using 40 keeps z-index values consistent with the nav rail (`zIndex: 40`) and avoids any risk of the dropdown bleeding over a modal backdrop.
 
 **TopBar container — glassmorphism removal:**
 - Remove `backdropFilter: 'blur(8px)'` and `WebkitBackdropFilter: 'blur(8px)'`
@@ -238,7 +261,7 @@ With:
 </div>
 ```
 
-`-webkit-overflow-scrolling: touch` ensures momentum scrolling on iOS. `minWidth` values are chosen to keep labels and bars legible at their natural scale.
+`-webkit-overflow-scrolling: touch` is included as a graceful fallback for iOS ≤ 12. iOS 13+ applies momentum scrolling automatically to `overflow: auto/scroll` elements, so modern iPhones will scroll natively without it. Keeping the property causes no harm and ensures older devices behave correctly.
 
 ---
 
@@ -246,7 +269,8 @@ With:
 
 | File | Change |
 |---|---|
-| `frontend/src/index.css` | Inter font import, token rename, `.glass-card`→`.card`, scrollbar rules |
+| `frontend/index.html` | Add Inter font preconnect + stylesheet `<link>` tags in `<head>` |
+| `frontend/src/index.css` | Inter body font-family, token rename, `.glass-card`→`.card`, scrollbar rules |
 | `frontend/src/components/layout/Sidebar.tsx` | Rail bg, mobile nav bug fix (inline→Tailwind), touch targets, remove glassmorphism |
 | `frontend/src/components/layout/TopBar.tsx` | Dropdown replaces pills, remove glassmorphism from container |
 | `frontend/src/components/cards/KpiCard.tsx` | `glass-card` → `card` className |
