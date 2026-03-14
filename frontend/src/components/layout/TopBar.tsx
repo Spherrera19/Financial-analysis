@@ -1,4 +1,5 @@
-import { Copy, Download } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Copy, Download, CalendarDays, ChevronDown, Check } from 'lucide-react';
 import type { PeriodKey } from '../../types';
 
 interface TopBarProps {
@@ -24,15 +25,42 @@ export function TopBar({
   onCopyAISummary,
   onDownloadAISummary,
 }: TopBarProps) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleInteraction(e: MouseEvent | KeyboardEvent) {
+      if (e.type === 'keydown' && (e as KeyboardEvent).key === 'Escape') {
+        setOpen(false);
+        return;
+      }
+      if (
+        e.type === 'mousedown' &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleInteraction);
+      document.addEventListener('keydown', handleInteraction);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+    };
+  }, [open]);
+
+  const activeLabel = PERIOD_LABELS.find(p => p.key === activePeriod)?.label ?? '';
+
   return (
     <div
       style={{
         position: 'sticky',
         top: 0,
         zIndex: 90,
-        background: 'color-mix(in srgb, var(--bg-base) 95%, transparent)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        background: 'var(--bg-card)',
         borderBottom: '1px solid var(--border-subtle)',
         padding: '0.75rem 1.5rem',
         display: 'flex',
@@ -41,47 +69,100 @@ export function TopBar({
         flexWrap: 'wrap',
       }}
     >
-      {/* Period filter buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap', flex: 1 }}>
-        {PERIOD_LABELS.map(({ key, label }) => {
-          const isActive = activePeriod === key;
-          return (
-            <button
-              key={key}
-              onClick={() => onPeriodChange(key)}
-              style={{
-                padding: '0.3125rem 0.875rem',
-                borderRadius: '9999px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '0.8125rem',
-                fontWeight: isActive ? 600 : 400,
-                background: isActive ? 'var(--accent-blue)' : 'var(--bg-surface)',
-                color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                transition: 'background 0.15s ease, color 0.15s ease',
-                outline: 'none',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => {
-                if (!isActive) {
-                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isActive) {
-                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
-                }
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
+      {/* Period dropdown */}
+      <div ref={dropdownRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            minHeight: 44,
+            padding: '0 12px',
+            borderRadius: 8,
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-card)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            outline: 'none',
+            transition: 'border-color 0.15s ease',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-blue)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-subtle)';
+          }}
+        >
+          <CalendarDays size={15} strokeWidth={2} />
+          {activeLabel}
+          <ChevronDown
+            size={14}
+            strokeWidth={2}
+            style={{
+              transform: open ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.15s ease',
+            }}
+          />
+        </button>
+
+        {open && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 8,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              minWidth: 160,
+              zIndex: 40,
+              overflow: 'hidden',
+            }}
+          >
+            {PERIOD_LABELS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { onPeriodChange(key); setOpen(false); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  minHeight: 44,
+                  padding: '0 14px',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  color: key === activePeriod ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                  fontWeight: key === activePeriod ? 600 : 400,
+                  fontSize: '0.875rem',
+                  textAlign: 'left',
+                  transition: 'background 0.1s ease',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    'color-mix(in srgb, var(--text-muted) 10%, transparent)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                }}
+              >
+                {label}
+                {key === activePeriod && (
+                  <Check size={14} strokeWidth={2.5} />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Export buttons + as-of date */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-        {/* As-of date */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, marginLeft: 'auto' }}>
         <span
           style={{
             fontSize: '0.6875rem',
@@ -93,7 +174,6 @@ export function TopBar({
           as of {asOfDate}
         </span>
 
-        {/* Copy AI Summary */}
         <button
           onClick={onCopyAISummary}
           title="Copy AI Summary"
@@ -124,7 +204,6 @@ export function TopBar({
           Copy AI Summary
         </button>
 
-        {/* Download .md */}
         <button
           onClick={onDownloadAISummary}
           title="Download .md"
