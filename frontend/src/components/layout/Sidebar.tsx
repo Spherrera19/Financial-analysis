@@ -5,6 +5,7 @@ import {
   Wallet,
   CreditCard,
   Receipt,
+  Settings,
 } from 'lucide-react';
 import type { TabKey } from '../../types';
 
@@ -12,61 +13,89 @@ interface SidebarProps {
   activeTab: TabKey;
   onTabChange: (tab: TabKey) => void;
   asOfDate?: string;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-const NAV_ITEMS = [
-  { id: 'overview' as TabKey,     label: 'Overview',      icon: LayoutDashboard },
-  { id: 'cashflow' as TabKey,     label: 'Cash Flow',     icon: TrendingUp },
-  { id: 'spending' as TabKey,     label: 'Spending',      icon: Wallet },
-  { id: 'debt' as TabKey,         label: 'Debt',          icon: CreditCard },
-  { id: 'transactions' as TabKey, label: 'Transactions',  icon: Receipt },
+const NAV_ITEMS: { id: TabKey; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
+  { id: 'overview',      label: 'Overview',      icon: LayoutDashboard },
+  { id: 'cashflow',      label: 'Cash Flow',      icon: TrendingUp },
+  { id: 'spending',      label: 'Spending',       icon: Wallet },
+  { id: 'debt',          label: 'Debt',           icon: CreditCard },
+  { id: 'transactions',  label: 'Transactions',   icon: Receipt },
+  { id: 'settings',      label: 'Settings',       icon: Settings },
 ];
 
-export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
+const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
+
+export function Sidebar({ activeTab, onTabChange, asOfDate, isOpen, onClose }: SidebarProps) {
+  const handleNavClick = (id: TabKey) => {
+    onTabChange(id);
+    onClose();
+  };
+
   return (
     <>
-      {/* ── Desktop sidebar (md+) ── */}
-      <aside
+      {/* ── Desktop overlay backdrop ── */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            key="sidebar-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="hidden md:block"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.3)',
+              zIndex: 39,
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Desktop sidebar drawer (md+) ── */}
+      <motion.aside
+        animate={{ x: isOpen ? 0 : -240 }}
+        transition={SPRING}
+        className="hidden md:flex"
         style={{
           background: 'var(--bg-base)',
           borderRight: '1px solid var(--border-subtle)',
-          color: 'var(--text-primary)',
           width: 240,
           position: 'fixed',
           top: 0,
           left: 0,
           height: '100vh',
-          display: 'flex',
           flexDirection: 'column',
           zIndex: 40,
           padding: '1.5rem 0',
+          willChange: 'transform',
         }}
-        className="hidden md:flex"
       >
-        {/* Header / branding */}
+        {/* Header */}
         <div style={{ padding: '0 1.25rem', marginBottom: '2rem' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              color: 'var(--accent-blue)',
-              fontWeight: 700,
-              fontSize: '1.25rem',
-            }}
-          >
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            color: 'var(--accent-blue)',
+            fontWeight: 700,
+            fontSize: '1.25rem',
+          }}>
             <Wallet size={22} strokeWidth={2.2} />
             <span style={{ color: 'var(--text-primary)' }}>Finance</span>
           </div>
           {asOfDate && (
-            <div
-              style={{
-                fontSize: '0.6875rem',
-                color: 'var(--text-muted)',
-                marginTop: '0.3rem',
-                letterSpacing: '0.03em',
-              }}
-            >
+            <div style={{
+              fontSize: '0.6875rem',
+              color: 'var(--text-muted)',
+              marginTop: '0.3rem',
+              letterSpacing: '0.03em',
+            }}>
               as of {asOfDate}
             </div>
           )}
@@ -79,7 +108,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
             return (
               <button
                 key={id}
-                onClick={() => onTabChange(id)}
+                onClick={() => handleNavClick(id)}
                 style={{
                   position: 'relative',
                   display: 'flex',
@@ -102,18 +131,13 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                   outline: 'none',
                 }}
                 onMouseEnter={e => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      'color-mix(in srgb, var(--text-muted) 10%, transparent)';
-                  }
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background =
+                    'color-mix(in srgb, var(--text-muted) 10%, transparent)';
                 }}
                 onMouseLeave={e => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                  }
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                 }}
               >
-                {/* Active left accent bar via layoutId */}
                 <AnimatePresence>
                   {isActive && (
                     <motion.span
@@ -128,11 +152,10 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                         borderRadius: '0 3px 3px 0',
                         background: 'var(--accent-blue)',
                       }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                      transition={SPRING}
                     />
                   )}
                 </AnimatePresence>
-
                 <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} />
                 <span>{label}</span>
               </button>
@@ -141,21 +164,20 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div
-          style={{
-            padding: '0 1.25rem',
-            borderTop: '1px solid var(--border-subtle)',
-            paddingTop: '1rem',
-          }}
-        >
+        <div style={{
+          padding: '0 1.25rem',
+          borderTop: '1px solid var(--border-subtle)',
+          paddingTop: '1rem',
+        }}>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             Personal Dashboard
           </div>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* ── Mobile bottom tab bar (<md) ── */}
       <nav
+        className="flex md:hidden"
         style={{
           position: 'fixed',
           bottom: 0,
@@ -170,9 +192,8 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
           backdropFilter: 'blur(var(--blur-glass))',
           WebkitBackdropFilter: 'blur(var(--blur-glass))',
           zIndex: 40,
-          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
-        className="flex md:hidden"
       >
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
           const isActive = activeTab === id;
@@ -195,7 +216,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                 fontWeight: isActive ? 600 : 400,
                 outline: 'none',
                 position: 'relative',
-                minWidth: 56,
+                minWidth: 44,
               }}
             >
               {isActive && (
@@ -211,7 +232,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                     borderRadius: '0 0 3px 3px',
                     background: 'var(--accent-blue)',
                   }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  transition={SPRING}
                 />
               )}
               <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
