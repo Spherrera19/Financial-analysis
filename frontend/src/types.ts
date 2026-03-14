@@ -81,4 +81,4 @@ export interface DashboardPayload {
   summaries: Record<PeriodKey, string>;
 }
 
-export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions';
+export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions' | 'settings';
