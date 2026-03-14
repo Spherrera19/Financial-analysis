@@ -44,8 +44,10 @@ export function FlowChart({ periodData }: FlowChartProps) {
   };
 
   return (
-    <div style={{ height: '280px' }}>
-      <Bar data={data} options={options} />
+    <div className="w-full overflow-x-auto pb-4 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+      <div style={{ height: 280, minWidth: 560 }}>
+        <Bar data={data} options={options} />
+      </div>
     </div>
   );
 }
