@@ -219,22 +219,25 @@ export function Sidebar({ activeTab, onTabChange, asOfDate, isOpen, onClose }: S
                 minWidth: 44,
               }}
             >
-              {isActive && (
-                <motion.span
-                  layoutId="activeNavMobile"
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 28,
-                    height: 2,
-                    borderRadius: '0 0 3px 3px',
-                    background: 'var(--accent-blue)',
-                  }}
-                  transition={SPRING}
-                />
-              )}
+              <AnimatePresence>
+                {isActive && (
+                  <motion.span
+                    key="activeNavMobile"
+                    layoutId="activeNavMobile"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 28,
+                      height: 2,
+                      borderRadius: '0 0 3px 3px',
+                      background: 'var(--accent-blue)',
+                    }}
+                    transition={SPRING}
+                  />
+                )}
+              </AnimatePresence>
               <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
               <span>{label}</span>
             </button>
