@@ -39,13 +39,13 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 
 ## Current Objective
 * **Phase 1:** ✅ COMPLETE (2026-03-12) — React UI rebuild with data.json pipeline
-* **Phase 1.5:** 🔄 IN PROGRESS (2026-03-14) — Collapsible sidebar + 5-theme system (see below)
+* **Phase 1.5:** ✅ COMPLETE (2026-03-14) — Collapsible sidebar + 5-theme system (see below)
 * **Phase 2:** Refactor Python backend to use Pydantic models and SQLite. (PENDING)
 * **Phase 3:** Add RSU tracking and Debt Snowball forecasting algorithms. (PENDING)
 
 ---
 
-## Phase 1.5 — Sidebar Theming (IN PROGRESS)
+## Phase 1.5 — Sidebar Theming (COMPLETE)
 
 **Spec:** `docs/superpowers/specs/2026-03-12-sidebar-theming-design.md`
 **Plan:** `docs/superpowers/plans/2026-03-14-sidebar-theming.md`
@@ -63,11 +63,45 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 
 ### Task progress
 - [x] **Task 1** ✅ DONE — Added `'settings'` to `TabKey` in `types.ts`, created `frontend/src/lib/theme.ts` (commit `4511607`)
-- [ ] **Task 2** — Add 4 `[data-theme]` CSS blocks to `index.css`, remove `.md-sidebar-offset` rule
-- [ ] **Task 3** — Rewrite `Sidebar.tsx` as overlay drawer with `isOpen`/`onClose` props, Settings nav item
-- [ ] **Task 4** — Rewrite `App.tsx` with sidebar state, GPU hamburger, theme init, SettingsTab routing
-- [ ] **Task 5** — Create `SettingsTab.tsx` + update `pages/index.ts`
-- [ ] **Task 6** — `npm run build` verification + append theming/nav docs to CLAUDE.md
+- [x] **Task 2** ✅ DONE — Add 4 `[data-theme]` CSS blocks to `index.css`, remove `.md-sidebar-offset` rule
+- [x] **Task 3** ✅ DONE — Rewrite `Sidebar.tsx` as overlay drawer with `isOpen`/`onClose` props, Settings nav item
+- [x] **Task 4** ✅ DONE — Rewrite `App.tsx` with sidebar state, GPU hamburger, theme init, SettingsTab routing
+- [x] **Task 5** ✅ DONE — Create `SettingsTab.tsx` + update `pages/index.ts`
+- [x] **Task 6** ✅ DONE — `npm run build` verification + append theming/nav docs to CLAUDE.md
 
-### To resume
-Next task is **Task 2**. Run the subagent-driven-development skill and execute the plan starting from Task 2. The plan file has full code for every task.
+### Phase 1.5 Complete
+All tasks for Phase 1.5 (sidebar theming + responsive navigation) have been completed successfully. The dashboard now features:
+- Collapsible overlay sidebar drawer on desktop (hamburger toggle)
+- Bottom tab bar on mobile (unchanged behavior)
+- Settings tab with 5-theme switcher (System, Light, Dark, Pastel, High Contrast)
+- Themes persisted via `localStorage` + `data-theme` on `<html>`
+- GPU-optimized animations (no layout shifts, no Chart.js stutter)
+
+## Theming Architecture
+
+Themes are controlled via a `data-theme` attribute on `<html>` (set by `src/lib/theme.ts`).
+
+- **System** (default): no `data-theme` attribute; `@media (prefers-color-scheme: dark)` applies automatically
+- **Light / Dark / Pastel / High Contrast**: `data-theme="light|dark|pastel|high-contrast"` overrides the system preference
+- CSS variable blocks for each theme are defined in `src/index.css`, placed **after** the `@media` dark block so source-order cascade wins
+- Preference is persisted to `localStorage` under the key `theme`
+- The `Theme` type and `applyTheme` / `loadTheme` helpers live in `src/lib/theme.ts`
+- `App.tsx` reads the stored preference on mount via `useState<Theme>(loadTheme)` and applies it via `useEffect([activeTheme])`
+
+**Do not** use `.dark` class or `ThemeContext` — the `data-theme` attribute on `<html>` is the sole mechanism.
+
+## Responsive Navigation Rules
+
+| Screen | Navigation |
+|---|---|
+| Desktop (`md+`, ≥768px) | Overlay sidebar drawer (240px), toggled via hamburger |
+| Mobile (`<md`, <768px) | Bottom tab bar only; sidebar never shown |
+
+- `sidebarOpen` state lives in `App.tsx`, persisted to `localStorage` under key `sidebar-open`
+- Sidebar uses `motion.aside` with `animate={{ x: isOpen ? 0 : -240 }}` — GPU-composited transform, never touches `marginLeft`
+- Main content has **no left margin** — sidebar overlays it
+- Hamburger uses `motion.button` with `animate={{ x: sidebarOpen ? 240 : 0 }}` (translateX, not `left`)
+- Hamburger is `hidden md:flex` (desktop only); sidebar is `hidden md:flex` (desktop only)
+- Bottom tab bar is `flex md:hidden` (mobile only) with `paddingBottom: env(safe-area-inset-bottom)`
+- **Settings tab** renders outside the `{data && ...}` guard — it is data-independent
+- Clicking any nav item or the backdrop closes the sidebar (`onClose`)
