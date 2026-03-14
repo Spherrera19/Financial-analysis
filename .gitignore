@@ -1,9 +1,13 @@
-# Generated output — contains embedded personal financial data
-dashboard.html
-
 # Personal financial data exports
 Balances_*.csv
 Transactions_*.csv
+
+# React build output and dependencies (compiled into frontend/dist via refresh.bat)
+frontend/node_modules/
+frontend/dist/
+
+# Generated financial data payload — keep real numbers out of Git
+frontend/public/data.json
 
 # Claude Code session files
 .claude/settings.local.json
