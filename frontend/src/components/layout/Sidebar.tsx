@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -13,11 +13,9 @@ interface SidebarProps {
   activeTab: TabKey;
   onTabChange: (tab: TabKey) => void;
   asOfDate?: string;
-  isOpen: boolean;
-  onClose: () => void;
 }
 
-const NAV_ITEMS: { id: TabKey; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
+const NAV_ITEMS: { id: TabKey; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }> }[] = [
   { id: 'overview',      label: 'Overview',      icon: LayoutDashboard },
   { id: 'cashflow',      label: 'Cash Flow',      icon: TrendingUp },
   { id: 'spending',      label: 'Spending',       icon: Wallet },
@@ -28,87 +26,66 @@ const NAV_ITEMS: { id: TabKey; label: string; icon: React.ComponentType<{ size?:
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
 
-export function Sidebar({ activeTab, onTabChange, asOfDate, isOpen, onClose }: SidebarProps) {
-  const handleNavClick = (id: TabKey) => {
-    onTabChange(id);
-    onClose();
-  };
-
+export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
   return (
     <>
-      {/* ── Desktop overlay backdrop ── */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            key="sidebar-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-            className="hidden md:block"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.3)',
-              zIndex: 39,
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* ── Desktop sidebar drawer (md+) ── */}
-      <motion.aside
-        animate={{ x: isOpen ? 0 : -240 }}
-        transition={SPRING}
-        className="hidden md:flex"
+      {/* ── Desktop nav rail (md+) ─────────────────────────────────────────── */}
+      {/*
+          Width: 72px collapsed → 240px on hover (CSS transition).
+          Floats over content via z-index + drop shadow; never pushes main content.
+          Main content has a static margin-left: 72px (see App.tsx).
+          Uses Tailwind `group` so child elements can react to rail hover.
+      */}
+      <aside
+        className="hidden md:flex group w-[72px] hover:w-60 hover:shadow-[4px_0_20px_rgba(0,0,0,0.12)] transition-[width,box-shadow] duration-200 ease-in-out"
         style={{
-          background: 'var(--bg-base)',
-          borderRight: '1px solid var(--border-subtle)',
-          width: 240,
           position: 'fixed',
           top: 0,
           left: 0,
           height: '100vh',
           flexDirection: 'column',
           zIndex: 40,
-          padding: '1.5rem 0',
-          willChange: 'transform',
+          overflow: 'hidden',
+          background: 'var(--bg-card)',
+          borderRight: '1px solid var(--border-subtle)',
+          willChange: 'width',
         }}
       >
-        {/* Header */}
-        <div style={{ padding: '0 1.25rem', marginBottom: '2rem' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            color: 'var(--accent-blue)',
-            fontWeight: 700,
-            fontSize: '1.25rem',
-          }}>
-            <Wallet size={22} strokeWidth={2.2} />
-            <span style={{ color: 'var(--text-primary)' }}>Finance</span>
-          </div>
-          {asOfDate && (
-            <div style={{
-              fontSize: '0.6875rem',
-              color: 'var(--text-muted)',
-              marginTop: '0.3rem',
-              letterSpacing: '0.03em',
-            }}>
-              as of {asOfDate}
+        {/* Header — icon always visible, text fades in on hover */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '1.5rem 0 1.5rem',
+          // paddingLeft centers the 22px Wallet icon in the 56px inner width (72 - 2×8px nav padding)
+          paddingLeft: 17,
+          marginBottom: '0.5rem',
+          color: 'var(--accent-blue)',
+        }}>
+          <Wallet size={22} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+          <div
+            className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75"
+            style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
+          >
+            <div style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
+              Finance
             </div>
-          )}
+            {asOfDate && (
+              <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: '0.2rem', letterSpacing: '0.03em' }}>
+                as of {asOfDate}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Nav items */}
-        <nav style={{ flex: 1, padding: '0 0.75rem' }}>
+        <nav style={{ flex: 1, padding: '0 8px' }}>
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
             const isActive = activeTab === id;
             return (
               <button
                 key={id}
-                onClick={() => handleNavClick(id)}
+                onClick={() => onTabChange(id)}
                 style={{
                   position: 'relative',
                   display: 'flex',
@@ -116,6 +93,8 @@ export function Sidebar({ activeTab, onTabChange, asOfDate, isOpen, onClose }: S
                   gap: '0.75rem',
                   width: '100%',
                   padding: '0.625rem 0.875rem',
+                  // paddingLeft centers the 18px icon in the 56px inner width (72 - 2×8px nav padding)
+                  paddingLeft: 19,
                   borderRadius: '0.625rem',
                   border: 'none',
                   cursor: 'pointer',
@@ -127,8 +106,10 @@ export function Sidebar({ activeTab, onTabChange, asOfDate, isOpen, onClose }: S
                     : 'transparent',
                   color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
                   transition: 'background 0.15s ease, color 0.15s ease',
-                  textAlign: 'left',
                   outline: 'none',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textAlign: 'left',
                 }}
                 onMouseEnter={e => {
                   if (!isActive) (e.currentTarget as HTMLButtonElement).style.background =
@@ -156,41 +137,42 @@ export function Sidebar({ activeTab, onTabChange, asOfDate, isOpen, onClose }: S
                     />
                   )}
                 </AnimatePresence>
-                <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} />
-                <span>{label}</span>
+                <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} style={{ flexShrink: 0 }} />
+                {/* Label fades in on rail hover via Tailwind group-hover */}
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75">
+                  {label}
+                </span>
               </button>
             );
           })}
         </nav>
 
         {/* Footer */}
-        <div style={{
-          padding: '0 1.25rem',
-          borderTop: '1px solid var(--border-subtle)',
-          paddingTop: '1rem',
-        }}>
+        <div
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75"
+          style={{
+            padding: '1rem 1.25rem',
+            borderTop: '1px solid var(--border-subtle)',
+            whiteSpace: 'nowrap',
+          }}
+        >
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             Personal Dashboard
           </div>
         </div>
-      </motion.aside>
+      </aside>
 
-      {/* ── Mobile bottom tab bar (<md) ── */}
+      {/* ── Mobile bottom tab bar (<md) — unchanged ───────────────────────── */}
       <nav
-        className="flex md:hidden"
+        className="flex md:hidden justify-around items-center"
         style={{
           position: 'fixed',
           bottom: 0,
           left: 0,
           right: 0,
-          display: 'flex',
-          justifyContent: 'space-around',
-          alignItems: 'center',
           height: 64,
-          background: 'var(--bg-glass)',
-          borderTop: '1px solid var(--bg-glass-border)',
-          backdropFilter: 'blur(var(--blur-glass))',
-          WebkitBackdropFilter: 'blur(var(--blur-glass))',
+          background: 'var(--bg-card)',
+          borderTop: '1px solid var(--border-subtle)',
           zIndex: 40,
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
@@ -217,6 +199,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate, isOpen, onClose }: S
                 outline: 'none',
                 position: 'relative',
                 minWidth: 44,
+                minHeight: 44,
               }}
             >
               <AnimatePresence>
