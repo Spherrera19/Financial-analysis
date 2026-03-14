@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu } from 'lucide-react';
+import { PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import type { DashboardPayload, PeriodKey, TabKey } from './types';
 import type { Theme } from './lib/theme';
 import { applyTheme, loadTheme } from './lib/theme';
@@ -167,7 +167,7 @@ export default function App() {
         }}
         aria-label={sidebarOpen ? 'Close navigation' : 'Open navigation'}
       >
-        <Menu size={18} />
+        {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
       </motion.button>
 
       {/* Main content — never shifts, sidebar overlays */}
