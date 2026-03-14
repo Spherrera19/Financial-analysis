@@ -39,5 +39,35 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 
 ## Current Objective
 * **Phase 1:** ✅ COMPLETE (2026-03-12) — React UI rebuild with data.json pipeline
+* **Phase 1.5:** 🔄 IN PROGRESS (2026-03-14) — Collapsible sidebar + 5-theme system (see below)
 * **Phase 2:** Refactor Python backend to use Pydantic models and SQLite. (PENDING)
 * **Phase 3:** Add RSU tracking and Debt Snowball forecasting algorithms. (PENDING)
+
+---
+
+## Phase 1.5 — Sidebar Theming (IN PROGRESS)
+
+**Spec:** `docs/superpowers/specs/2026-03-12-sidebar-theming-design.md`
+**Plan:** `docs/superpowers/plans/2026-03-14-sidebar-theming.md`
+
+### What this adds
+- Collapsible overlay sidebar drawer on desktop (hamburger toggle)
+- Bottom tab bar on mobile (unchanged behavior)
+- Settings tab with 5-theme switcher (System, Light, Dark, Pastel, High Contrast)
+- Themes persisted via `localStorage` + `data-theme` on `<html>`
+
+### Performance-critical design decisions
+- Sidebar is a GPU-composited overlay (`motion.aside` with `x: -240 → 0`), **never** shifts `marginLeft` (avoids Chart.js stutter)
+- Hamburger uses `motion.button` with `animate={{ x: sidebarOpen ? 240 : 0 }}` (translateX, not `left`)
+- Mobile bottom bar has `paddingBottom: env(safe-area-inset-bottom, 0px)`
+
+### Task progress
+- [x] **Task 1** ✅ DONE — Added `'settings'` to `TabKey` in `types.ts`, created `frontend/src/lib/theme.ts` (commit `4511607`)
+- [ ] **Task 2** — Add 4 `[data-theme]` CSS blocks to `index.css`, remove `.md-sidebar-offset` rule
+- [ ] **Task 3** — Rewrite `Sidebar.tsx` as overlay drawer with `isOpen`/`onClose` props, Settings nav item
+- [ ] **Task 4** — Rewrite `App.tsx` with sidebar state, GPU hamburger, theme init, SettingsTab routing
+- [ ] **Task 5** — Create `SettingsTab.tsx` + update `pages/index.ts`
+- [ ] **Task 6** — `npm run build` verification + append theming/nav docs to CLAUDE.md
+
+### To resume
+Next task is **Task 2**. Run the subagent-driven-development skill and execute the plan starting from Task 2. The plan file has full code for every task.
