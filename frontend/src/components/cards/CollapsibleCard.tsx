@@ -19,7 +19,7 @@ export function CollapsibleCard({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={cn('glass-card', className)}>
+    <div className={cn('card', className)}>
       {/* Header */}
       <button
         onClick={() => setIsOpen(prev => !prev)}

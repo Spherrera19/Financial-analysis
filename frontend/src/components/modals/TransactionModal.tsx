@@ -72,7 +72,7 @@ function TransactionModal({ isOpen, onClose, title, transactions }: TransactionM
             exit={{ opacity: 0, y: 40 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-card"
+            className="card"
             style={{
               width: '100%',
               maxWidth: 960,

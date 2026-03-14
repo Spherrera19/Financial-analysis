@@ -42,7 +42,7 @@ export function KpiCard({
 
   return (
     <div
-      className="kpi-card glass-card"
+      className="kpi-card card"
       style={{
         padding: '1.5rem',
         borderRadius: '0.875rem',
