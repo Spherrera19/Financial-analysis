@@ -39,12 +39,14 @@ export function SankeyChart({ flows }: SankeyChartProps) {
   };
 
   return (
-    <div style={{ height: '340px' }}>
-      <Chart
-        type={'sankey' as any}
-        data={chartData as any}
-        options={options}
-      />
+    <div className="w-full overflow-x-auto pb-4 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+      <div style={{ height: 340, minWidth: 600 }}>
+        <Chart
+          type={'sankey' as any}
+          data={chartData as any}
+          options={options}
+        />
+      </div>
     </div>
   );
 }
