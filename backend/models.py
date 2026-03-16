@@ -48,6 +48,17 @@ class SankeyFlow(BaseModel):
 PeriodKey = Literal["current", "last", "past2", "quarter", "year"]
 
 
+class CashFlowWaterfall(BaseModel):
+    total_income:               float
+    necessary_spending:         float   # necessities + min(dbt_total, sum_minimums)
+    true_discretionary_income:  float   # max(0, total_income - necessary_spending)
+    optional_spending:          float   # opt_total + oth_total (merged for bar width)
+    opt_subtotal:               float   # opt_total alone (for tooltip sub-breakdown)
+    oth_subtotal:               float   # oth_total alone (for tooltip sub-breakdown)
+    extra_debt_payments:        float   # max(0, dbt_total - sum_minimums)
+    unspent_free_cash:          float   # max(0, true_discretionary - optional - extra_debt)
+
+
 class PeriodData(BaseModel):
     labels: list[str]
     income: list[float]
@@ -70,6 +81,7 @@ class PeriodData(BaseModel):
     kpi_debt: float
     kpi_disposable: float
     sankey: list[SankeyFlow]
+    cash_flow_waterfall: CashFlowWaterfall
 
 
 # ---------------------------------------------------------------------------
