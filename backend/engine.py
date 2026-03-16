@@ -353,7 +353,7 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
         DebtAccount(
             name=str(row["name"])[-28:],
             balance=round(-abs(float(row["balance"])), 2),
-            rate=guess_interest_rate(str(row["name"])),
+            rate=guess_interest_rate(str(row["name"])) / 100.0,
         )
         for _, row in latest.iterrows()
     ]
