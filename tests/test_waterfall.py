@@ -36,11 +36,10 @@ def _compute_waterfall(
 ) -> dict:
     """
     Mirrors the waterfall computation in engine.py build_period().
-    Keep in sync with that function.
-    NOTE: _compute_waterfall is a local test helper defined here in the test file,
-    not imported from engine.py. It only imports get_minimum_payment_total from classify.
+    Local helper — defined here in the test file, not imported from engine.py.
+    Depends only on get_minimum_payment_total from backend.classify (module-level import).
+    Keep in sync with build_period() once implemented.
     """
-    from backend.classify import get_minimum_payment_total
     _min_total  = get_minimum_payment_total(n_months)
     extra_debt  = round(max(0.0, dbt_total - _min_total), 2)
     necessary   = round(nec_total + min(dbt_total, _min_total), 2)
