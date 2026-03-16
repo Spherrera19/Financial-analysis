@@ -15,10 +15,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from backend.classify import classify, guess_interest_rate
+from backend.classify import classify, get_minimum_payment_total, guess_interest_rate
 from backend.database import init_db
 from backend.models import (
     Account,
+    CashFlowWaterfall,
     DebtAccount,
     DebtSection,
     DebtTrend,
@@ -230,6 +231,25 @@ def build_period(conn: sqlite3.Connection, period_key: str) -> PeriodData:
             if net_savings > 0:
                 sankey_rows.append(SankeyFlow(from_=src_name, to="Net / Savings", flow=round(ratio * net_savings, 2)))
 
+    # ── Discretionary waterfall ────────────────────────────────────────────
+    _n_months   = len(period_months)
+    _min_total  = get_minimum_payment_total(_n_months)
+    _extra_debt = round(max(0.0, dbt_total - _min_total), 2)
+    _necessary  = round(nec_total + min(dbt_total, _min_total), 2)
+    _true_disc  = round(max(0.0, kpi_income - _necessary), 2)
+    _opt_spend  = round(opt_total + oth_total, 2)
+    _unspent    = round(max(0.0, _true_disc - _opt_spend - _extra_debt), 2)
+    waterfall   = CashFlowWaterfall(
+        total_income=round(kpi_income, 2),
+        necessary_spending=_necessary,
+        true_discretionary_income=_true_disc,
+        optional_spending=_opt_spend,
+        opt_subtotal=round(opt_total, 2),
+        oth_subtotal=round(oth_total, 2),
+        extra_debt_payments=_extra_debt,
+        unspent_free_cash=_unspent,
+    )
+
     return PeriodData(
         labels=period_months,
         income=income,
@@ -251,6 +271,7 @@ def build_period(conn: sqlite3.Connection, period_key: str) -> PeriodData:
         kpi_debt=round(dbt_total, 2),
         kpi_disposable=round(kpi_income - nec_total - dbt_total, 2),
         sankey=sankey_rows,
+        cash_flow_waterfall=waterfall,
     )
 
 
@@ -268,6 +289,16 @@ def _empty_period_data(period_months: list[str]) -> PeriodData:
         kpi_income=0.0, kpi_spending=0.0, kpi_net=0.0,
         kpi_debt=0.0, kpi_disposable=0.0,
         sankey=[],
+        cash_flow_waterfall=CashFlowWaterfall(
+            total_income=0.0,
+            necessary_spending=0.0,
+            true_discretionary_income=0.0,
+            optional_spending=0.0,
+            opt_subtotal=0.0,
+            oth_subtotal=0.0,
+            extra_debt_payments=0.0,
+            unspent_free_cash=0.0,
+        ),
     )
 
 
