@@ -67,4 +67,17 @@ def _create_tables(conn: sqlite3.Connection) -> None:
 
     CREATE INDEX IF NOT EXISTS idx_ah_name ON accounts_history(name);
     CREATE INDEX IF NOT EXISTS idx_ah_date ON accounts_history(date);
+
+    -- -----------------------------------------------------------------------
+    -- account_terms
+    --   User-configured APR and minimum payment per debt account.
+    --   account_name matches DebtAccount.name (last 28 chars of the full name,
+    --   consistent with what the Debt Tab displays in the UI).
+    --   INSERT OR REPLACE semantics make upserts trivial from the API.
+    -- -----------------------------------------------------------------------
+    CREATE TABLE IF NOT EXISTS account_terms (
+        account_name  TEXT  PRIMARY KEY,
+        apr           REAL  NOT NULL,   -- decimal, e.g. 0.24 for 24%
+        min_payment   REAL  NOT NULL    -- fixed monthly minimum in dollars
+    );
     """)

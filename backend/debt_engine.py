@@ -2,8 +2,8 @@
 Phase 3, Step 2 — Debt Snowball / Avalanche Forecaster
 =======================================================
 Pure Python simulation engine — no Pandas, no DB access.
-Designed for Phase 4 FastAPI migration: build_projection() returns a
-DebtProjection Pydantic model that can be returned directly from a route.
+DB-sourced APR/min-payment overrides are passed in as a pre-fetched dict
+(db_terms) from engine.py, keeping this module free of DB imports.
 
 Run standalone:
     python -c "from backend.debt_engine import build_projection; print(build_projection([]))"
@@ -27,19 +27,35 @@ MOCK_APRS: dict[str, float] = {
 
 MAX_SIMULATION_MONTHS = 600  # 50-year safety cap; prevents infinite loops
 
+# Type alias: truncated account_name → (apr as decimal, min_payment in $)
+DbTerms = dict[str, tuple[float, float]]
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def get_apr_for_account(account_name: str) -> float:
+def get_apr_for_account(
+    account_name: str,
+    db_terms: "DbTerms | None" = None,
+) -> float:
     """
     Return the annual percentage rate (as a decimal, e.g. 0.24) for an account.
 
     Priority:
-    1. Substring match against MOCK_APRS keys (case-insensitive).
-    2. Fallback: guess_interest_rate() / 100.0 (returns percentage — divide to normalise).
+    1. Exact match against db_terms keys (DB-saved user configuration).
+    2. Substring match against db_terms keys.
+    3. Substring match against MOCK_APRS keys (case-insensitive).
+    4. Fallback: guess_interest_rate() / 100.0.
     """
+    if db_terms:
+        if account_name in db_terms:
+            return db_terms[account_name][0]
+        lower = account_name.lower()
+        for saved_name, (apr, _) in db_terms.items():
+            if saved_name.lower() in lower or lower in saved_name.lower():
+                return apr
+
     lower = account_name.lower()
     for mock_key, apr in MOCK_APRS.items():
         if mock_key in lower:
@@ -47,19 +63,38 @@ def get_apr_for_account(account_name: str) -> float:
     return guess_interest_rate(account_name) / 100.0
 
 
-def _get_min_payment(account_name: str, balance: float) -> float:
+def get_default_min_payment(account_name: str) -> float:
     """
-    Return the minimum monthly payment for an account.
-
-    Priority:
-    1. Substring match against MINIMUM_PAYMENTS (case-insensitive, from classify.py).
-    2. Fallback: 1% of current balance.
+    Return the known minimum payment from MINIMUM_PAYMENTS, or 0.0 if unknown.
+    No balance-based fallback — used for settings display defaults only.
     """
     lower = account_name.lower()
     for key, amount in MINIMUM_PAYMENTS.items():
         if key in lower:
             return amount
-    return round(balance * 0.01, 2)
+    return 0.0
+
+
+def _get_min_payment(
+    account_name: str,
+    balance: float,
+    db_terms: "DbTerms | None" = None,
+) -> float:
+    """
+    Return the minimum monthly payment for an account.
+
+    Priority:
+    1. Exact match against db_terms (DB-saved user configuration).
+    2. Substring match against MINIMUM_PAYMENTS (case-insensitive).
+    3. Fallback: 1% of current balance.
+    """
+    if db_terms and account_name in db_terms:
+        return db_terms[account_name][1]
+    lower = account_name.lower()
+    for key, amount in MINIMUM_PAYMENTS.items():
+        if key in lower:
+            return amount
+    return round(abs(balance) * 0.01, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +105,7 @@ def simulate_payoff(
     accounts: list[DebtAccount],
     monthly_allocation: float,
     strategy: Literal["snowball", "avalanche"],
+    db_terms: "DbTerms | None" = None,
 ) -> PayoffScenario:
     """
     Simulate month-by-month debt payoff.
@@ -77,21 +113,15 @@ def simulate_payoff(
     Snowball  — target the lowest balance first (fastest psychological win).
     Avalanche — target the highest APR first (lowest total interest paid).
 
-    Each month:
-      1. Apply compound interest to every account.
-      2. Make minimum payments on every account.
-      3. Apply any remaining allocation to the current target account.
-      4. Remove fully paid accounts.
-      5. Record total remaining balance in monthly_balances.
-
-    Stops when all balances reach zero or MAX_SIMULATION_MONTHS is hit.
+    APR comes from DebtAccount.rate (pre-resolved by engine.py via db_terms).
+    Min payments check db_terms first, then MINIMUM_PAYMENTS, then 1% fallback.
     """
     # Build a mutable working list (only accounts with a non-trivial balance)
     working: list[dict] = [
         {
             "name": a.name,
-            "balance": abs(a.balance),   # engine works with positive numbers internally
-            "apr": get_apr_for_account(a.name),
+            "balance": abs(a.balance),
+            "apr": a.rate,   # already resolved in engine.py using db_terms
         }
         for a in accounts
         if abs(a.balance) > 0.01
@@ -120,7 +150,7 @@ def simulate_payoff(
         # Step 2: Apply minimum payments to all accounts
         remaining = monthly_allocation
         for acct in working:
-            min_pmt = _get_min_payment(acct["name"], acct["balance"])
+            min_pmt = _get_min_payment(acct["name"], acct["balance"], db_terms)
             payment = min(min_pmt, acct["balance"])
             acct["balance"] = max(0.0, acct["balance"] - payment)
             remaining -= payment
@@ -158,18 +188,17 @@ def simulate_payoff(
 def build_projection(
     accounts: list[DebtAccount],
     monthly_allocation: float = 2000.0,
+    db_terms: "DbTerms | None" = None,
 ) -> DebtProjection:
     """
     Run both strategies and return a single DebtProjection.
 
-    Phase 4: return this directly from a FastAPI route — no rewrite needed.
-
-    monthly_allocation defaults to $2,000 (Phase 3 deliberate placeholder).
-    Phase 4 will derive this from the current-period waterfall fields:
-        unspent_free_cash + extra_debt_payments + sum(MINIMUM_PAYMENTS.values())
+    db_terms: pre-fetched from account_terms table by engine.py.
+              Keys are truncated account names (last 28 chars), matching
+              DebtAccount.name. Values are (apr_decimal, min_payment_dollars).
     """
     return DebtProjection(
-        snowball=simulate_payoff(accounts, monthly_allocation, "snowball"),
-        avalanche=simulate_payoff(accounts, monthly_allocation, "avalanche"),
+        snowball=simulate_payoff(accounts, monthly_allocation, "snowball", db_terms),
+        avalanche=simulate_payoff(accounts, monthly_allocation, "avalanche", db_terms),
         monthly_allocation=monthly_allocation,
     )

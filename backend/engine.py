@@ -349,11 +349,26 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
     latest = df.sort_values("date").groupby("name", as_index=False).last()
     latest = latest.sort_values("balance")  # ascending = most negative first
 
+    # Load user-configured APRs and minimum payments from account_terms table.
+    # Keys are truncated names (last 28 chars) matching DebtAccount.name.
+    cursor = conn.execute(
+        "SELECT account_name, apr, min_payment FROM account_terms"
+    )
+    db_terms: dict[str, tuple[float, float]] = {
+        row["account_name"]: (row["apr"], row["min_payment"])
+        for row in cursor.fetchall()
+    }
+
     debt_accounts = [
         DebtAccount(
             name=str(row["name"])[-28:],
             balance=round(-abs(float(row["balance"])), 2),
-            rate=guess_interest_rate(str(row["name"])) / 100.0,
+            # Use DB-saved APR if available, otherwise fall back to heuristic
+            rate=(
+                db_terms[str(row["name"])[-28:]][0]
+                if str(row["name"])[-28:] in db_terms
+                else guess_interest_rate(str(row["name"])) / 100.0
+            ),
         )
         for _, row in latest.iterrows()
     ]
@@ -361,7 +376,7 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
     return DebtSection(
         accounts=debt_accounts,
         trend=DebtTrend(labels=list(all_months), values=debt_month_values),
-        projection=build_projection(debt_accounts, monthly_allocation=2000.0),  # NEW
+        projection=build_projection(debt_accounts, monthly_allocation=2000.0, db_terms=db_terms),
     )
 
 

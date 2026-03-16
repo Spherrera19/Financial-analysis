@@ -72,7 +72,9 @@ export default function App() {
   const handleThemeChange = (t: Theme) => setActiveTheme(t);
 
   // ── Data fetching ──
-  useEffect(() => {
+  const refreshData = () => {
+    setLoading(true);
+    setError(null);
     fetch('http://localhost:8000/api/dashboard')
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -80,7 +82,9 @@ export default function App() {
       })
       .then((d: DashboardPayload) => { setData(d); setLoading(false); })
       .catch((e: Error) => { setError(e.message); setLoading(false); });
-  }, []);
+  };
+
+  useEffect(() => { refreshData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── AI summary helpers ──
   const getSummaryText = () => data?.summaries[activePeriod] ?? '';
@@ -130,7 +134,11 @@ export default function App() {
         {/* Settings tab — outside data guard, always available */}
         {activeTab === 'settings' ? (
           <div style={{ padding: '1.5rem' }}>
-            <SettingsTab activeTheme={activeTheme} onThemeChange={handleThemeChange} />
+            <SettingsTab
+            activeTheme={activeTheme}
+            onThemeChange={handleThemeChange}
+            onRefresh={refreshData}
+          />
           </div>
         ) : (
           <>
