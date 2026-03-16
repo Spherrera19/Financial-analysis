@@ -27,6 +27,7 @@ const PERIOD_FIELDS: (keyof PeriodData)[] = [
   'chk_income', 'chk_outflow', 'nec_opt_donut',
   'cat_labels', 'cat_values', 'src_labels', 'src_values',
   'kpi_income', 'kpi_spending', 'kpi_net', 'kpi_debt', 'kpi_disposable', 'sankey',
+  'cash_flow_waterfall',
 ];
 
 // ── Assertion helper ───────────────────────────────────────────────────────
@@ -85,6 +86,17 @@ for (const pk of PERIOD_KEYS) {
       check(typeof s.to    === 'string', `periods.${pk}.sankey[0].to must be string`);
       check(typeof s.flow  === 'number', `periods.${pk}.sankey[0].flow must be number`);
     }
+
+    // cash_flow_waterfall field type checks
+    const wf = p.cash_flow_waterfall;
+    check(typeof wf?.total_income              === 'number', `periods.${pk}.cash_flow_waterfall.total_income must be number`);
+    check(typeof wf?.necessary_spending        === 'number', `periods.${pk}.cash_flow_waterfall.necessary_spending must be number`);
+    check(typeof wf?.true_discretionary_income === 'number', `periods.${pk}.cash_flow_waterfall.true_discretionary_income must be number`);
+    check(typeof wf?.optional_spending         === 'number', `periods.${pk}.cash_flow_waterfall.optional_spending must be number`);
+    check(typeof wf?.opt_subtotal              === 'number', `periods.${pk}.cash_flow_waterfall.opt_subtotal must be number`);
+    check(typeof wf?.oth_subtotal              === 'number', `periods.${pk}.cash_flow_waterfall.oth_subtotal must be number`);
+    check(typeof wf?.extra_debt_payments       === 'number', `periods.${pk}.cash_flow_waterfall.extra_debt_payments must be number`);
+    check(typeof wf?.unspent_free_cash         === 'number', `periods.${pk}.cash_flow_waterfall.unspent_free_cash must be number`);
   }
 
   check(typeof data.summaries?.[pk] === 'string', `summaries.${pk} must be string`);
@@ -126,7 +138,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-const totalChecks = PERIOD_KEYS.length * (PERIOD_FIELDS.length + 8) + 25;
+const totalChecks = PERIOD_KEYS.length * (PERIOD_FIELDS.length + 16) + 25;
 process.stdout.write(`\u2705  data.json \u2713 matches DashboardPayload  (${totalChecks}+ checks passed)\n`);
 process.stdout.write(
   `    ${data.accounts.length} accounts | ` +
