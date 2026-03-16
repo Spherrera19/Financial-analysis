@@ -12,3 +12,6 @@ frontend/public/data.json
 # Claude Code session files
 .claude/settings.local.json
 .claude/plans/
+
+# Python virtual environment
+venv/

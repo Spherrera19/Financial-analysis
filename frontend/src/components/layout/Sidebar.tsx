@@ -44,7 +44,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
           left: 0,
           height: '100vh',
           flexDirection: 'column',
-          zIndex: 40,
+          zIndex: 100,
           overflow: 'hidden',
           background: 'var(--bg-card)',
           borderRight: '1px solid var(--border-subtle)',

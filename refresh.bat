@@ -1,4 +1,7 @@
 @echo off
+echo Activating virtual environment...
+call venv\Scripts\activate
+
 echo Generating financial data...
 python generate_dashboard.py
 if %errorlevel% neq 0 (

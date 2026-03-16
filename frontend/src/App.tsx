@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import type { DashboardPayload, PeriodKey, TabKey } from './types';
 import type { Theme } from './lib/theme';
 import { applyTheme, loadTheme } from './lib/theme';
@@ -64,24 +63,6 @@ export default function App() {
   const [activePeriod, setActivePeriod] = useState<PeriodKey>('last');
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
-  // ── Sidebar state ──
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() =>
-    localStorage.getItem('sidebar-open') !== 'false'
-  );
-
-  const toggleSidebar = () => {
-    setSidebarOpen(prev => {
-      const next = !prev;
-      localStorage.setItem('sidebar-open', String(next));
-      return next;
-    });
-  };
-
-  const closeSidebar = () => {
-    setSidebarOpen(false);
-    localStorage.setItem('sidebar-open', 'false');
-  };
-
   // ── Theme state ──
   const [activeTheme, setActiveTheme] = useState<Theme>(loadTheme);
 
@@ -134,45 +115,16 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
 
-      {/* Sidebar — overlay drawer, does not push content */}
+      {/* Nav rail — CSS hover-driven, floats over content on expand */}
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         asOfDate={data?.meta.as_of_date}
-        isOpen={sidebarOpen}
-        onClose={closeSidebar}
       />
 
-      {/* Hamburger button — desktop only, GPU-accelerated translateX */}
-      <motion.button
-        animate={{ x: sidebarOpen ? 240 : 0 }}
-        transition={SPRING}
-        onClick={toggleSidebar}
-        className="hidden md:flex"
-        style={{
-          position: 'fixed',
-          top: '1rem',
-          left: '1rem',
-          zIndex: 50,
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 36,
-          height: 36,
-          borderRadius: '0.5rem',
-          border: '1px solid var(--border-subtle)',
-          background: 'var(--bg-surface)',
-          color: 'var(--text-secondary)',
-          cursor: 'pointer',
-          outline: 'none',
-        }}
-        aria-label={sidebarOpen ? 'Close navigation' : 'Open navigation'}
-      >
-        {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-      </motion.button>
-
-      {/* Main content — never shifts, sidebar overlays */}
+      {/* Main content — static 72px left margin on desktop matches collapsed rail width */}
       <main
-        className="main-content"
+        className="main-content md:ml-[72px] flex-1 flex flex-col"
         style={{ minHeight: '100vh' }}
       >
         {/* Settings tab — outside data guard, always available */}
