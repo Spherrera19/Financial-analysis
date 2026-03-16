@@ -41,6 +41,35 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 const API = 'http://localhost:8000';
 
 // ---------------------------------------------------------------------------
+// Institution parser
+// ---------------------------------------------------------------------------
+
+function getInstitutionName(rawName: string): string {
+  const l = rawName.toLowerCase();
+  if (l.includes('amex') || l.includes('american express') || l.includes('optima')) return 'American Express';
+  if (l.includes('chase'))                                                            return 'Chase';
+  if (l.includes('capital one') || l.includes('quicksilver'))                        return 'Capital One';
+  if (l.includes('citi') || l.includes('double cash'))                               return 'Citi';
+  if (l.includes('discover'))                                                         return 'Discover';
+  return 'Other';
+}
+
+/** Group a flat list of terms by institution; Other always sorts last. */
+function groupByInstitution(terms: DebtTermEntry[]): [string, DebtTermEntry[]][] {
+  const map = new Map<string, DebtTermEntry[]>();
+  for (const term of terms) {
+    const key = getInstitutionName(term.account_name);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(term);
+  }
+  return [...map.entries()].sort(([a], [b]) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return a.localeCompare(b);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Debt Configuration sub-component
 // ---------------------------------------------------------------------------
 
@@ -163,8 +192,31 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
           ))}
         </div>
 
-        {/* Data rows */}
-        {terms.map((term, i) => (
+        {/* Data rows — grouped by institution */}
+        {groupByInstitution(terms).map(([institution, group]) => (
+          <div key={institution}>
+            {/* Group sub-header */}
+            <div style={{
+              padding: '0.4rem 1rem',
+              background: 'var(--bg-muted)',
+              borderBottom: '1px solid var(--border-subtle)',
+              borderTop: '1px solid var(--border-subtle)',
+            }}>
+              <span style={{
+                fontSize: '0.675rem',
+                fontWeight: 700,
+                color: 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                fontVariant: 'small-caps',
+              }}>
+                {institution}
+              </span>
+            </div>
+
+            {group.map((term, groupIdx) => {
+              const i = terms.indexOf(term); // flat index for update handlers
+              return (
           <div
             key={term.account_name}
             style={{
@@ -172,7 +224,7 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
               gridTemplateColumns: '1fr 160px 110px 130px',
               alignItems: 'center',
               padding: '0.625rem 1rem',
-              borderBottom: i < terms.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+              borderBottom: groupIdx < group.length - 1 ? '1px solid var(--border-subtle)' : 'none',
               background: 'var(--bg-surface)',
               gap: '0.75rem',
             }}
@@ -267,6 +319,9 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
                 boxSizing: 'border-box',
               }}
             />
+          </div>
+              );
+            })}
           </div>
         ))}
       </div>
