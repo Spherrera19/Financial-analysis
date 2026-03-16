@@ -24,6 +24,17 @@ export interface SankeyFlow {
   flow: number;
 }
 
+export interface CashFlowWaterfall {
+  total_income:               number;  // 1
+  necessary_spending:         number;  // 2
+  true_discretionary_income:  number;  // 3
+  optional_spending:          number;  // 4 — opt_subtotal + oth_subtotal merged
+  opt_subtotal:               number;  // 5 — optional category alone (tooltip)
+  oth_subtotal:               number;  // 6 — other category alone (tooltip)
+  extra_debt_payments:        number;  // 7
+  unspent_free_cash:          number;  // 8
+}
+
 export interface PeriodData {
   labels: string[];
   income: number[];
@@ -45,6 +56,7 @@ export interface PeriodData {
   kpi_debt: number;
   kpi_disposable: number;
   sankey: SankeyFlow[];
+  cash_flow_waterfall: CashFlowWaterfall;
 }
 
 export type PeriodKey = 'current' | 'last' | 'past2' | 'quarter' | 'year';
