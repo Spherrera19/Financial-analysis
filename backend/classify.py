@@ -44,6 +44,21 @@ TRANSFER_CATEGORIES = {"Transfer", "Credit Card Payment"}
 INCOME_CATEGORIES   = {"Paychecks"}
 CHECKING_KEYWORDS   = ("CHECKING", "SAVINGS")
 
+# ---------------------------------------------------------------------------
+# Minimum debt payments (mocked for Phase 3; keys = lowercase account name substrings)
+# Phase 4 will replace this with a DB-backed or user-configured source.
+# ---------------------------------------------------------------------------
+
+MINIMUM_PAYMENTS: dict[str, float] = {
+    "chase sapphire": 150.0,
+    "amex":           75.0,
+}
+
+
+def get_minimum_payment_total(n_months: int = 1) -> float:
+    """Sum of all minimum payments, scaled by number of months in the period."""
+    return sum(MINIMUM_PAYMENTS.values()) * n_months
+
 # Maps the classify() result to the compact Transaction.t code used in data.json
 TYPE_CODE = {
     "income":    "I",
