@@ -73,7 +73,7 @@ export default function App() {
 
   // ── Data fetching ──
   useEffect(() => {
-    fetch('./data.json')
+    fetch('http://localhost:8000/api/dashboard')
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

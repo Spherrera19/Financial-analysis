@@ -42,41 +42,41 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 * **Phase 1:** ✅ COMPLETE (2026-03-12) — React UI rebuild with data.json pipeline
 * **Phase 1.5:** ✅ COMPLETE (2026-03-14) — 5-theme system
 * **Phase 1.6:** ✅ COMPLETE (2026-03-14) — Navigation Rail (replaces hamburger/drawer)
-* **Phase 2:** ✅ COMPLETE (2026-03-16) — SQLite + Pydantic backend. Ingest → Engine → Orchestrator → Validated JSON → Vite build pipeline fully operational.
-* **Phase 3:** Add RSU tracking and Debt Snowball forecasting algorithms. (PENDING)
+* **Phase 2:** ✅ COMPLETE (2026-03-16) — SQLite + Pydantic backend pipeline.
+* **Phase 3 (Steps 1 & 2):** ✅ COMPLETE (2026-03-16) — Discretionary Waterfall & Debt Snowball Forecaster.
+* **Phase 4:** 🔄 IN PROGRESS — FastAPI Backend Wrapper & UI Interactivity.
 
-## Future Roadmap: Phases 3, 4, & 5
+---
 
-### Phase 3: Advanced Financial Planning (Current)
-**Goal:** Shift from passive reporting to interactive, forward-looking financial tracking using the existing SQLite + CSV architecture.
-* [x] **Step 1: Discretionary Waterfall** (Completed)
-  * Track "Free Cash Flow" and delineate extra debt payments from minimums.
-* [x] **Step 2: Debt Snowball Forecaster & Manual APRs** (Completed 2026-03-16)
-  * **Database:** Add `account_terms` table to SQLite (`account_name`, `apr`, `minimum_payment`).
-  * **Engine:** Create `backend/debt_engine.py` to project month-over-month payoff dates and interest saved (Snowball vs. Avalanche).
-  * **Frontend:** Add a "Debt Configuration" panel in `SettingsTab.tsx` for manual APR/Minimum payment input to populate the `account_terms` table.
-* [ ] **Step 3: RSU & Equity Tracking**
-  * **Database:** Add `equity_grants` table to SQLite (`grant_date`, `ticker`, `total_shares`, `vesting_schedule`).
-  * **Engine:** Create `backend/equity_engine.py` to calculate vested vs. unvested shares, estimate upcoming tax withholdings, and project post-tax liquidity based on current stock prices.
-  * **Frontend:** Build an "Equity" module (or dedicated tab) visualizing the vesting cliff and projecting total compensation for the year.
+## Future Roadmap: Phases 4, 5, & 6
 
-### Phase 4: The Interactive App (Local API)
-**Goal:** Sunset the `refresh.bat` terminal script and transition to a real-time local web application.
+### Phase 4: The Interactive App (Local API) — **CURRENT PHASE**
+**Goal:** Sunset the `refresh.bat` terminal script and transition to a real-time local web application to allow two-way data binding and file uploads.
 * [ ] **Step 1: FastAPI Backend Wrapper**
-  * Wrap the existing Pydantic models and SQLite database into a local FastAPI server (`localhost:8000`).
-* [ ] **Step 2: Frontend CSV & Document Uploads**
-  * **Frontend:** Build a drag-and-drop zone in React for Monarch CSVs and Equity statements.
-  * **Flow:** React `POST`s files to FastAPI -> FastAPI triggers `ingest.py` and `engine.py` -> UI refreshes instantly without needing to touch the terminal.
+  * Wrap the existing pure Pydantic models and SQLite database into a local FastAPI server (`localhost:8000`).
+* [ ] **Step 2: Interactive Debt Settings API**
+  * **Backend:** Create `POST` routes to update the `account_terms` SQLite table.
+  * **Frontend:** Build the "Debt Configuration" input fields in `SettingsTab.tsx` to overwrite the mocked APRs manually.
+* [ ] **Step 3: Frontend CSV Uploads**
+  * **Frontend:** Build a drag-and-drop zone in React for Monarch/Bank CSVs.
+  * **Flow:** React `POST`s files to FastAPI -> FastAPI triggers `ingest.py` and `engine.py` -> UI refreshes instantly.
 
-### Phase 5: The Automation Endgame (Plaid Integration)
-**Goal:** Eliminate manual CSV downloads and manual APR tracking by syncing directly with bank institutions via Plaid's free Development tier.
-* [ ] **Step 1: Plaid Link Component**
-  * Integrate `react-plaid-link` into `SettingsTab.tsx` to authenticate real household bank/credit accounts.
-* [ ] **Step 2: Liabilities API Sync**
-  * Wire FastAPI to hit Plaid's `/liabilities/get` endpoint to automatically pull live balances, **live APRs, and live minimum payments**.
-* [ ] **Step 3: Sunsetting Legacy Systems**
-  * Map Plaid JSON directly to the `transactions` and `accounts_history` SQLite tables.
-  * Hide the manual CSV upload zone and the manual APR input panel, as the Phase 3 Debt Forecaster is now fully automated.
+### Phase 5: Automated PDF Document Processing
+**Goal:** Eliminate manual APR tracking by extracting terms directly from official bank statement PDFs.
+* [ ] **Step 1: PDF Parsing Engine**
+  * Integrate a Python PDF library (e.g., `pdfplumber`) into `backend/ingest.py`.
+  * Write extraction logic to locate "Annual Percentage Rate", "Minimum Payment", and "Statement Balance" via regex or text positioning.
+* [ ] **Step 2: Drag-and-Drop Extension**
+  * Update the React drag-and-drop zone to accept `.pdf` files.
+  * Route PDF uploads to the new parsing engine, which updates the `account_terms` table automatically and recalculates the Debt Snowball forecaster.
+
+### Phase 6: RSU & Equity Tracking (Deferred from Phase 3)
+**Goal:** Build stock tracking now that the Phase 4 API allows for easy data input.
+* [ ] **Step 1: Equity Engine & Database**
+  * Add `equity_grants` table to SQLite (`grant_date`, `ticker`, `total_shares`, `vesting_schedule`).
+  * Create `backend/equity_engine.py` to calculate vested vs. unvested shares.
+* [ ] **Step 2: The Equity UI**
+  * Build an "Equity" module visualizing the vesting cliff. User can upload E*TRADE Excel files via the drag-and-drop zone.
 
 
 ## Phase 1.5 — Sidebar Theming (COMPLETE)
