@@ -1,5 +1,5 @@
 import { KpiCard, CollapsibleCard } from '../components/cards';
-import { SankeyChart } from '../components/charts';
+import { SankeyChart, DiscretionaryBar } from '../components/charts';
 import { AccountList } from '../components/tables';
 import type { DashboardPayload, PeriodKey } from '../types';
 
@@ -19,6 +19,13 @@ function OverviewTab({ data, activePeriod }: OverviewTabProps) {
 
   return (
     <div style={{ padding: '1.5rem' }}>
+      {/* Discretionary Waterfall — most critical metric, shown first */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <CollapsibleCard title="Discretionary Income Breakdown">
+          <DiscretionaryBar waterfall={period.cash_flow_waterfall} />
+        </CollapsibleCard>
+      </div>
+
       {/* KPI Row */}
       <div
         className="grid-kpi"
