@@ -9,6 +9,16 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Validating data.json against TypeScript contract...
+cd frontend
+call npm run validate
+if %errorlevel% neq 0 (
+    echo ERROR: data.json failed DashboardPayload validation.
+    cd ..
+    exit /b 1
+)
+cd ..
+
 echo Building React app...
 cd frontend
 call npm run build

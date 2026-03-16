@@ -42,7 +42,7 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 * **Phase 1:** ✅ COMPLETE (2026-03-12) — React UI rebuild with data.json pipeline
 * **Phase 1.5:** ✅ COMPLETE (2026-03-14) — 5-theme system
 * **Phase 1.6:** ✅ COMPLETE (2026-03-14) — Navigation Rail (replaces hamburger/drawer)
-* **Phase 2:** Refactor Python backend to use Pydantic models and SQLite. (IN PROGRESS — scaffolding complete 2026-03-14)
+* **Phase 2:** ✅ COMPLETE (2026-03-16) — SQLite + Pydantic backend. Ingest → Engine → Orchestrator → Validated JSON → Vite build pipeline fully operational.
 * **Phase 3:** Add RSU tracking and Debt Snowball forecasting algorithms. (PENDING)
 
 ---
@@ -108,7 +108,7 @@ backend/
 1. ✅ Scaffolding — `backend/` package, `models.py`, `database.py`, `requirements.txt`, venv activation in `refresh.bat`
 2. ✅ Ingest — `backend/ingest.py` + `backend/classify.py`; wipe-and-reload ETL populates SQLite from CSVs
 3. ✅ Compute — `backend/engine.py` (2026-03-16) + `generate_dashboard.py` refactored to lightweight orchestrator (2026-03-16). Full pipeline: Ingest → Engine → DashboardPayload.to_json() → data.json. Vite build verified.
-4. [ ] Validate — add round-trip test: Python → JSON → TypeScript parse (CI)
+4. ✅ Validate — `frontend/scripts/validate_payload.ts` (165+ checks); `npm run validate` wired into `refresh.bat` before Vite build (2026-03-16)
 
 ---
 
