@@ -45,7 +45,39 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 * **Phase 2:** ✅ COMPLETE (2026-03-16) — SQLite + Pydantic backend. Ingest → Engine → Orchestrator → Validated JSON → Vite build pipeline fully operational.
 * **Phase 3:** Add RSU tracking and Debt Snowball forecasting algorithms. (PENDING)
 
----
+## Future Roadmap: Phases 3, 4, & 5
+
+### Phase 3: Advanced Financial Planning (Current)
+**Goal:** Shift from passive reporting to interactive, forward-looking financial tracking using the existing SQLite + CSV architecture.
+* [x] **Step 1: Discretionary Waterfall** (Completed)
+  * Track "Free Cash Flow" and delineate extra debt payments from minimums.
+* [x] **Step 2: Debt Snowball Forecaster & Manual APRs** (Completed 2026-03-16)
+  * **Database:** Add `account_terms` table to SQLite (`account_name`, `apr`, `minimum_payment`).
+  * **Engine:** Create `backend/debt_engine.py` to project month-over-month payoff dates and interest saved (Snowball vs. Avalanche).
+  * **Frontend:** Add a "Debt Configuration" panel in `SettingsTab.tsx` for manual APR/Minimum payment input to populate the `account_terms` table.
+* [ ] **Step 3: RSU & Equity Tracking**
+  * **Database:** Add `equity_grants` table to SQLite (`grant_date`, `ticker`, `total_shares`, `vesting_schedule`).
+  * **Engine:** Create `backend/equity_engine.py` to calculate vested vs. unvested shares, estimate upcoming tax withholdings, and project post-tax liquidity based on current stock prices.
+  * **Frontend:** Build an "Equity" module (or dedicated tab) visualizing the vesting cliff and projecting total compensation for the year.
+
+### Phase 4: The Interactive App (Local API)
+**Goal:** Sunset the `refresh.bat` terminal script and transition to a real-time local web application.
+* [ ] **Step 1: FastAPI Backend Wrapper**
+  * Wrap the existing Pydantic models and SQLite database into a local FastAPI server (`localhost:8000`).
+* [ ] **Step 2: Frontend CSV & Document Uploads**
+  * **Frontend:** Build a drag-and-drop zone in React for Monarch CSVs and Equity statements.
+  * **Flow:** React `POST`s files to FastAPI -> FastAPI triggers `ingest.py` and `engine.py` -> UI refreshes instantly without needing to touch the terminal.
+
+### Phase 5: The Automation Endgame (Plaid Integration)
+**Goal:** Eliminate manual CSV downloads and manual APR tracking by syncing directly with bank institutions via Plaid's free Development tier.
+* [ ] **Step 1: Plaid Link Component**
+  * Integrate `react-plaid-link` into `SettingsTab.tsx` to authenticate real household bank/credit accounts.
+* [ ] **Step 2: Liabilities API Sync**
+  * Wire FastAPI to hit Plaid's `/liabilities/get` endpoint to automatically pull live balances, **live APRs, and live minimum payments**.
+* [ ] **Step 3: Sunsetting Legacy Systems**
+  * Map Plaid JSON directly to the `transactions` and `accounts_history` SQLite tables.
+  * Hide the manual CSV upload zone and the manual APR input panel, as the Phase 3 Debt Forecaster is now fully automated.
+
 
 ## Phase 1.5 — Sidebar Theming (COMPLETE)
 
