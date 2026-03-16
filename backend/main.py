@@ -36,9 +36,10 @@ from generate_dashboard import compute_ai_summary
 # ---------------------------------------------------------------------------
 
 class AccountTerm(BaseModel):
-    account_name: str
-    apr: float          # decimal, e.g. 0.24 for 24%
-    min_payment: float  # fixed monthly minimum in dollars
+    account_name: str           # full original name — PRIMARY KEY in account_terms
+    apr: float                  # decimal, e.g. 0.24 for 24%
+    min_payment: float          # fixed monthly minimum in dollars
+    display_name: str | None = None  # user nickname; None = show full name
 
 
 class DebtSettingsUpdate(BaseModel):
@@ -125,9 +126,9 @@ def get_dashboard() -> JSONResponse:
 @app.get("/api/debt/settings")
 def get_debt_settings() -> JSONResponse:
     """
-    Return all debt accounts (ever seen as liabilities) with their current
-    APR and minimum payment — from account_terms if saved, otherwise defaults.
-    account_name uses the same last-28-char truncation as DebtAccount.name.
+    Return all debt accounts (ever seen as liabilities in accounts_history)
+    with their current APR, minimum payment, and optional display nickname.
+    account_name is the FULL original name — never truncated.
     """
     conn = init_db(DB_PATH)
     try:
@@ -135,40 +136,42 @@ def get_debt_settings() -> JSONResponse:
         rows = conn.execute(
             "SELECT DISTINCT name FROM accounts_history WHERE type = 'liability' ORDER BY name"
         ).fetchall()
-        all_debt_full_names: list[str] = [r["name"] for r in rows]
+        all_full_names: list[str] = [r["name"] for r in rows]
 
-        # Currently saved user overrides (keyed by truncated name)
+        # Saved user overrides keyed by full account name
         saved_rows = conn.execute(
-            "SELECT account_name, apr, min_payment FROM account_terms"
+            "SELECT account_name, apr, min_payment, display_name FROM account_terms"
         ).fetchall()
-        saved: dict[str, tuple[float, float]] = {
-            r["account_name"]: (r["apr"], r["min_payment"]) for r in saved_rows
+        saved: dict[str, dict] = {
+            r["account_name"]: {
+                "apr":          r["apr"],
+                "min_payment":  r["min_payment"],
+                "display_name": r["display_name"],
+            }
+            for r in saved_rows
         }
     finally:
         conn.close()
 
     result = []
-    seen_truncated: set[str] = set()
-    for full_name in all_debt_full_names:
-        truncated = full_name[-28:]
-        if truncated in seen_truncated:
-            continue  # deduplicate on the unlikely chance two names share a suffix
-        seen_truncated.add(truncated)
-
-        if truncated in saved:
-            apr, min_payment = saved[truncated]
-            is_custom = True
+    for full_name in all_full_names:
+        s = saved.get(full_name)
+        if s:
+            result.append({
+                "account_name": full_name,
+                "display_name": s["display_name"],
+                "apr":          s["apr"],
+                "min_payment":  s["min_payment"],
+                "is_custom":    True,
+            })
         else:
-            apr = get_apr_for_account(full_name)
-            min_payment = get_default_min_payment(full_name)
-            is_custom = False
-
-        result.append({
-            "account_name": truncated,
-            "apr": apr,
-            "min_payment": min_payment,
-            "is_custom": is_custom,
-        })
+            result.append({
+                "account_name": full_name,
+                "display_name": None,
+                "apr":          get_apr_for_account(full_name),
+                "min_payment":  get_default_min_payment(full_name),
+                "is_custom":    False,
+            })
 
     return JSONResponse(content=result)
 
@@ -187,10 +190,16 @@ def save_debt_settings(body: DebtSettingsUpdate) -> JSONResponse:
         for term in body.terms:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO account_terms (account_name, apr, min_payment)
-                VALUES (?, ?, ?)
+                INSERT OR REPLACE INTO account_terms
+                    (account_name, apr, min_payment, display_name)
+                VALUES (?, ?, ?, ?)
                 """,
-                (term.account_name, term.apr, term.min_payment),
+                (
+                    term.account_name,
+                    term.apr,
+                    term.min_payment,
+                    term.display_name or None,  # store NULL for empty string
+                ),
             )
         conn.commit()
     finally:

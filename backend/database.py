@@ -23,8 +23,25 @@ def init_db(db_path: str | Path = "finance.db") -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON;")
 
     _create_tables(conn)
+    _migrate(conn)
     conn.commit()
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """
+    Idempotent migrations for schema changes added after initial deployment.
+    Each step is safe to run on an already-migrated database.
+    """
+    # v2: add display_name column to account_terms
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(account_terms)")}
+    if "display_name" not in existing:
+        conn.execute("ALTER TABLE account_terms ADD COLUMN display_name TEXT")
+
+    # v2: purge any rows written with the old 28-char truncated-name scheme.
+    # Full names from Monarch CSVs are always longer than 28 chars (they include
+    # the "(...NNNN)" suffix), so rows with account_name ≤ 28 chars are stale.
+    conn.execute("DELETE FROM account_terms WHERE length(account_name) <= 28")
 
 
 def _create_tables(conn: sqlite3.Connection) -> None:
@@ -70,14 +87,18 @@ def _create_tables(conn: sqlite3.Connection) -> None:
 
     -- -----------------------------------------------------------------------
     -- account_terms
-    --   User-configured APR and minimum payment per debt account.
-    --   account_name matches DebtAccount.name (last 28 chars of the full name,
-    --   consistent with what the Debt Tab displays in the UI).
+    --   User-configured APR, minimum payment, and optional display nickname
+    --   per debt account.
+    --   account_name PRIMARY KEY stores the FULL original name from
+    --   accounts_history — never truncated, always matches the source data.
+    --   display_name is the user-chosen nickname shown in the UI; NULL means
+    --   fall back to the full account_name.
     --   INSERT OR REPLACE semantics make upserts trivial from the API.
     -- -----------------------------------------------------------------------
     CREATE TABLE IF NOT EXISTS account_terms (
         account_name  TEXT  PRIMARY KEY,
         apr           REAL  NOT NULL,   -- decimal, e.g. 0.24 for 24%
-        min_payment   REAL  NOT NULL    -- fixed monthly minimum in dollars
+        min_payment   REAL  NOT NULL,   -- fixed monthly minimum in dollars
+        display_name  TEXT              -- user nickname; NULL = use account_name
     );
     """)

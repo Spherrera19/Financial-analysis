@@ -349,34 +349,52 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
     latest = df.sort_values("date").groupby("name", as_index=False).last()
     latest = latest.sort_values("balance")  # ascending = most negative first
 
-    # Load user-configured APRs and minimum payments from account_terms table.
-    # Keys are truncated names (last 28 chars) matching DebtAccount.name.
+    # Load user-configured terms keyed by the FULL original account name.
     cursor = conn.execute(
-        "SELECT account_name, apr, min_payment FROM account_terms"
+        "SELECT account_name, apr, min_payment, display_name FROM account_terms"
     )
-    db_terms: dict[str, tuple[float, float]] = {
-        row["account_name"]: (row["apr"], row["min_payment"])
+    full_name_terms: dict[str, dict] = {
+        row["account_name"]: {
+            "apr":          row["apr"],
+            "min_payment":  row["min_payment"],
+            "display_name": row["display_name"],   # None if not set by user
+        }
         for row in cursor.fetchall()
     }
 
-    debt_accounts = [
-        DebtAccount(
-            name=str(row["name"])[-28:],
+    # Build DebtAccount list.
+    # DebtAccount.name = user's display_name if set, otherwise the full name.
+    # simulation_terms is keyed by DebtAccount.name so that simulate_payoff
+    # can look up min_payment using acct["name"] without any re-translation.
+    debt_accounts: list[DebtAccount] = []
+    simulation_terms: dict[str, tuple[float, float]] = {}
+
+    for _, row in latest.iterrows():
+        full_name = str(row["name"])
+        saved = full_name_terms.get(full_name)
+
+        if saved:
+            display = saved["display_name"] or full_name
+            apr = saved["apr"]
+            simulation_terms[display] = (saved["apr"], saved["min_payment"])
+        else:
+            display = full_name
+            apr = guess_interest_rate(full_name) / 100.0
+
+        debt_accounts.append(DebtAccount(
+            name=display,
             balance=round(-abs(float(row["balance"])), 2),
-            # Use DB-saved APR if available, otherwise fall back to heuristic
-            rate=(
-                db_terms[str(row["name"])[-28:]][0]
-                if str(row["name"])[-28:] in db_terms
-                else guess_interest_rate(str(row["name"])) / 100.0
-            ),
-        )
-        for _, row in latest.iterrows()
-    ]
+            rate=apr,
+        ))
 
     return DebtSection(
         accounts=debt_accounts,
         trend=DebtTrend(labels=list(all_months), values=debt_month_values),
-        projection=build_projection(debt_accounts, monthly_allocation=2000.0, db_terms=db_terms),
+        projection=build_projection(
+            debt_accounts,
+            monthly_allocation=2000.0,
+            db_terms=simulation_terms,
+        ),
     )
 
 
