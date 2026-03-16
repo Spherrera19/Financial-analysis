@@ -212,12 +212,12 @@ def build_database(
     row = conn.execute(
         "SELECT MIN(date), MAX(date) FROM transactions WHERE date != ''"
     ).fetchone()
-    print(f"  transaction date range: {row[0]}  →  {row[1]}")
+    print(f"  transaction date range: {row[0]}  ->  {row[1]}")
 
     row = conn.execute(
         "SELECT MIN(date), MAX(date) FROM accounts_history WHERE date != ''"
     ).fetchone()
-    print(f"  balance date range    : {row[0]}  →  {row[1]}")
+    print(f"  balance date range    : {row[0]}  ->  {row[1]}")
 
     print("\n[ingest] Done.\n")
     return conn

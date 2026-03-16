@@ -107,7 +107,7 @@ backend/
 ### Phase 2 milestones
 1. ✅ Scaffolding — `backend/` package, `models.py`, `database.py`, `requirements.txt`, venv activation in `refresh.bat`
 2. ✅ Ingest — `backend/ingest.py` + `backend/classify.py`; wipe-and-reload ETL populates SQLite from CSVs
-3. 🔄 Compute — `backend/engine.py` written (2026-03-16); `build_summary`, `build_accounts`, `build_period`, `build_debt_section`, `get_recent_transactions` all return strict Pydantic models. Next: wire `generate_dashboard.py` to call engine instead of ad-hoc dicts.
+3. ✅ Compute — `backend/engine.py` (2026-03-16) + `generate_dashboard.py` refactored to lightweight orchestrator (2026-03-16). Full pipeline: Ingest → Engine → DashboardPayload.to_json() → data.json. Vite build verified.
 4. [ ] Validate — add round-trip test: Python → JSON → TypeScript parse (CI)
 
 ---
