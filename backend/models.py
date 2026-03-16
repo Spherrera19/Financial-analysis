@@ -99,9 +99,22 @@ class DebtTrend(BaseModel):
     values: list[float]
 
 
+class PayoffScenario(BaseModel):
+    payoff_months: int              # months until total balance reaches 0
+    total_interest_paid: float      # cumulative interest paid across all accounts
+    monthly_balances: list[float]   # total remaining debt each month (for sparkline)
+
+
+class DebtProjection(BaseModel):
+    snowball: PayoffScenario
+    avalanche: PayoffScenario
+    monthly_allocation: float       # cash dedicated to debt per month (for display)
+
+
 class DebtSection(BaseModel):
     accounts: list[DebtAccount]
     trend: DebtTrend
+    projection: DebtProjection      # NEW — required field
 
 
 # ---------------------------------------------------------------------------
