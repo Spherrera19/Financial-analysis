@@ -17,12 +17,15 @@ import pandas as pd
 
 from backend.classify import classify, get_minimum_payment_total, guess_interest_rate
 from backend.database import init_db
+from backend.debt_engine import build_projection   # NEW
 from backend.models import (
     Account,
     CashFlowWaterfall,
     DebtAccount,
+    DebtProjection,      # NEW
     DebtSection,
     DebtTrend,
+    PayoffScenario,      # NEW
     PeriodData,
     SankeyFlow,
     Summary,
@@ -316,7 +319,16 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
         conn,
     )
     if df.empty:
-        return DebtSection(accounts=[], trend=DebtTrend(labels=[], values=[]))
+        _empty = PayoffScenario(payoff_months=0, total_interest_paid=0.0, monthly_balances=[])
+        return DebtSection(
+            accounts=[],
+            trend=DebtTrend(labels=[], values=[]),
+            projection=DebtProjection(
+                snowball=_empty,
+                avalanche=_empty,
+                monthly_allocation=0.0,
+            ),
+        )
 
     df["month"] = df["date"].str[:7]
 
@@ -349,6 +361,7 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
     return DebtSection(
         accounts=debt_accounts,
         trend=DebtTrend(labels=list(all_months), values=debt_month_values),
+        projection=build_projection(debt_accounts, monthly_allocation=2000.0),  # NEW
     )
 
 
