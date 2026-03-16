@@ -67,9 +67,22 @@ export interface DebtAccount {
   rate: number;
 }
 
+export interface PayoffScenario {
+  payoff_months: number;
+  total_interest_paid: number;
+  monthly_balances: number[];
+}
+
+export interface DebtProjection {
+  snowball: PayoffScenario;
+  avalanche: PayoffScenario;
+  monthly_allocation: number;
+}
+
 export interface DebtSection {
   accounts: DebtAccount[];
   trend: { labels: string[]; values: number[] };
+  projection: DebtProjection;
 }
 
 export interface Transaction {
