@@ -129,6 +129,29 @@ if (data.transactions.length > 0) {
   check(tx.k === 0 || tx.k === 1, 'transaction[0].k must be 0 or 1');
 }
 
+// ── debt.projection ───────────────────────────────────────────────────────
+
+check(typeof data.debt?.projection         === 'object' && data.debt.projection !== null,
+  'debt.projection must be an object');
+check(typeof data.debt?.projection?.monthly_allocation === 'number',
+  'debt.projection.monthly_allocation must be number');
+
+check(typeof data.debt?.projection?.snowball === 'object' && data.debt.projection.snowball !== null,
+  'debt.projection.snowball must be an object');
+check(typeof data.debt?.projection?.snowball?.payoff_months === 'number',
+  'debt.projection.snowball.payoff_months must be number');
+check(typeof data.debt?.projection?.snowball?.total_interest_paid === 'number',
+  'debt.projection.snowball.total_interest_paid must be number');
+check(Array.isArray(data.debt?.projection?.snowball?.monthly_balances),
+  'debt.projection.snowball.monthly_balances must be array');
+
+check(typeof data.debt?.projection?.avalanche === 'object' && data.debt.projection.avalanche !== null,
+  'debt.projection.avalanche must be an object');
+check(typeof data.debt?.projection?.avalanche?.payoff_months === 'number',
+  'debt.projection.avalanche.payoff_months must be number');
+check(typeof data.debt?.projection?.avalanche?.total_interest_paid === 'number',
+  'debt.projection.avalanche.total_interest_paid must be number');
+
 // ── Report ────────────────────────────────────────────────────────────────
 
 if (failures.length > 0) {
@@ -138,7 +161,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-const totalChecks = PERIOD_KEYS.length * (PERIOD_FIELDS.length + 16) + 25;
+const totalChecks = PERIOD_KEYS.length * (PERIOD_FIELDS.length + 16) + 34;
 process.stdout.write(`\u2705  data.json \u2713 matches DashboardPayload  (${totalChecks}+ checks passed)\n`);
 process.stdout.write(
   `    ${data.accounts.length} accounts | ` +
