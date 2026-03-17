@@ -306,7 +306,11 @@ z-index conflicts and duplicate animations.
 they only pass `category` or `type`. The period is injected automatically at the App level:
 
 ```tsx
-// App.tsx
+// App.tsx — IMPORTANT: these three declarations must be at the TOP of the App function body,
+// unconditionally — not inside any {data && ...} guard or conditional render block.
+// BudgetTab and EquityTab render before `data` is available (pre-guard block) and both
+// need access to onDrillDown. If these were scoped inside a conditional, BudgetTab would
+// receive a stale or undefined prop.
 const [drawerFilter, setDrawerFilter] = useState<DrawerFilter | null>(null);
 
 // Charts call onDrillDown with Omit<DrawerFilter, 'period'>; period is injected here.
@@ -445,6 +449,12 @@ const SLICE_TYPE: Record<string, string | undefined> = {
 };
 ```
 
+**Placement note:** Use `options.onClick` (Chart.js native handler) — NOT a React `onClick` prop
+on `<Doughnut>`. Only Chart.js's `options.onClick` receives `(event, elements[])` with clicked
+element indices. This works correctly with `react-chartjs-2` v5 / Chart.js v4 (already installed).
+A raw React `onClick` prop on `<Doughnut>` receives only a `React.MouseEvent` with no element
+context and cannot be used for slice identification.
+
 Chart.js `options.onClick` addition:
 ```typescript
 onClick: (_event, elements) => {
@@ -453,6 +463,10 @@ onClick: (_event, elements) => {
   // defined in this component — it is closed over here, not a Chart.js callback parameter.
   const label    = chartData.labels![elements[0].index] as string;
   const typeCode = SLICE_TYPE[label];
+  // Guard: SLICE_TYPE covers all four labels ('Necessities','Optional','Debt','Other').
+  // If for any reason label is not in the map, skip the drill-down rather than pass
+  // undefined type (which would return all transactions — wrong context).
+  if (typeCode === undefined) return;
   onDrillDown({ type: typeCode, label });
 },
 ```
