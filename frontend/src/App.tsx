@@ -11,6 +11,8 @@ import {
   DebtTab,
   TransactionsTab,
   SettingsTab,
+  EquityTab,
+  BudgetTab,
 } from './pages';
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
@@ -112,7 +114,9 @@ export default function App() {
       case 'spending':     return <SpendingTab     data={data} activePeriod={activePeriod} />;
       case 'debt':         return <DebtTab         data={data} />;
       case 'transactions': return <TransactionsTab data={data} activePeriod={activePeriod} />;
-      case 'settings':     return null; // handled below the data guard
+      case 'equity':       return null; // handled in pre-guard chain
+      case 'budget':       return null; // handled in pre-guard chain
+      case 'settings':     return null; // handled in pre-guard chain
     }
   };
 
@@ -131,14 +135,22 @@ export default function App() {
         className="main-content md:ml-[72px] flex-1 flex flex-col"
         style={{ minHeight: '100vh' }}
       >
-        {/* Settings tab — outside data guard, always available */}
+        {/* Data-independent tabs — outside data guard, always available */}
         {activeTab === 'settings' ? (
           <div style={{ padding: '1.5rem' }}>
             <SettingsTab
-            activeTheme={activeTheme}
-            onThemeChange={handleThemeChange}
-            onRefresh={refreshData}
-          />
+              activeTheme={activeTheme}
+              onThemeChange={handleThemeChange}
+              onRefresh={refreshData}
+            />
+          </div>
+        ) : activeTab === 'equity' ? (
+          <div style={{ padding: '1.5rem' }}>
+            <EquityTab />
+          </div>
+        ) : activeTab === 'budget' ? (
+          <div style={{ padding: '1.5rem' }}>
+            <BudgetTab />
           </div>
         ) : (
           <>

@@ -6,6 +6,8 @@ import {
   CreditCard,
   Receipt,
   Settings,
+  BarChart2,
+  Landmark,
 } from 'lucide-react';
 import type { TabKey } from '../../types';
 
@@ -21,6 +23,8 @@ const NAV_ITEMS: { id: TabKey; label: string; icon: React.ComponentType<{ size?:
   { id: 'spending',      label: 'Spending',       icon: Wallet },
   { id: 'debt',          label: 'Debt',           icon: CreditCard },
   { id: 'transactions',  label: 'Transactions',   icon: Receipt },
+  { id: 'equity',        label: 'Equity',         icon: BarChart2 },
+  { id: 'budget',        label: 'Budget',         icon: Landmark },
   { id: 'settings',      label: 'Settings',       icon: Settings },
 ];
 

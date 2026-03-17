@@ -17,7 +17,7 @@ def init_db(db_path: str | Path = "finance.db") -> sqlite3.Connection:
     Create (or open) the SQLite database and ensure all tables exist.
     Returns an open connection with row_factory set to sqlite3.Row.
     """
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
@@ -42,6 +42,34 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # Full names from Monarch CSVs are always longer than 28 chars (they include
     # the "(...NNNN)" suffix), so rows with account_name ≤ 28 chars are stale.
     conn.execute("DELETE FROM account_terms WHERE length(account_name) <= 28")
+
+    # v3: add source column to equity_grants (tracks manual vs. brokerage_csv origin)
+    existing_eq = {row[1] for row in conn.execute("PRAGMA table_info(equity_grants)")}
+    if "source" not in existing_eq:
+        conn.execute(
+            "ALTER TABLE equity_grants ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"
+        )
+
+    # v4: seed routing_targets when table is empty
+    if conn.execute("SELECT COUNT(*) FROM routing_targets").fetchone()[0] == 0:
+        conn.executemany(
+            "INSERT INTO routing_targets (name, monthly_amount, category, priority) VALUES (?, ?, ?, ?)",
+            [
+                ("Fixed Auto-Pay (x6011)", 2500.0, "bills",     1),
+                ("Shared Living (x5252)",   950.0, "living",    2),
+                ("Wife Personal",           815.0, "allowance", 3),
+                ("Steven Personal",         410.0, "allowance", 3),
+            ],
+        )
+
+    # v4: one-time backfill — populate categories from existing transaction data.
+    # Uses INSERT OR IGNORE so any user-set budgets on pre-existing rows are untouched.
+    # The prune step (removing stale zero-budget rows) is ingest.py's job; we only ADD here.
+    conn.execute("""
+        INSERT OR IGNORE INTO categories (name)
+        SELECT DISTINCT category FROM transactions
+        WHERE category IS NOT NULL AND category != ''
+    """)
 
 
 def _create_tables(conn: sqlite3.Connection) -> None:
@@ -101,4 +129,73 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         min_payment   REAL  NOT NULL,   -- fixed monthly minimum in dollars
         display_name  TEXT              -- user nickname; NULL = use account_name
     );
+
+    -- -----------------------------------------------------------------------
+    -- equity_grants
+    --   One row per RSU/equity grant.  vesting_schedule is stored as a JSON
+    --   string: [{"date": "YYYY-MM-DD", "shares": 50.0}, ...]
+    --   Each vest event's projected price scenarios are computed at runtime
+    --   by equity_engine.py and are NOT persisted here.
+    -- -----------------------------------------------------------------------
+    CREATE TABLE IF NOT EXISTS equity_grants (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticker            TEXT    NOT NULL,
+        grant_date        TEXT    NOT NULL,           -- YYYY-MM-DD
+        total_shares      REAL    NOT NULL,
+        vesting_schedule  TEXT    NOT NULL,           -- JSON array of vest events
+        source            TEXT    NOT NULL DEFAULT 'manual'  -- 'manual' | 'brokerage_csv'
+    );
+
+    -- -----------------------------------------------------------------------
+    -- routing_targets
+    --   One row per funding bucket in the Paycheck Router.
+    --   priority 1 = highest (funded first in the waterfall).
+    -- -----------------------------------------------------------------------
+    CREATE TABLE IF NOT EXISTS routing_targets (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        name            TEXT    NOT NULL,
+        monthly_amount  REAL    NOT NULL,
+        category        TEXT    NOT NULL DEFAULT '',
+        priority        INTEGER NOT NULL DEFAULT 99
+    );
+
+    -- -----------------------------------------------------------------------
+    -- categories
+    --   One row per transaction category.  Populated by
+    --   sync_categories_from_transactions() after each CSV ingest.
+    --   monthly_budget is user-editable; 0.0 = no budget set.
+    -- -----------------------------------------------------------------------
+    CREATE TABLE IF NOT EXISTS categories (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        name            TEXT    NOT NULL UNIQUE,
+        monthly_budget  REAL    NOT NULL DEFAULT 0.0
+    );
+    """)
+
+
+def sync_categories_from_transactions(conn: sqlite3.Connection) -> None:
+    """
+    Keep the categories table in sync with the distinct category values in
+    the transactions table.
+
+    - INSERT OR IGNORE adds any category found in transactions that doesn't
+      have a row yet (leaves existing monthly_budget values untouched).
+    - The DELETE prunes stale rows whose budget is still 0.0 (auto-synced,
+      never user-edited) and whose name no longer appears in any transaction.
+      Rows with a non-zero budget are preserved even if their transactions
+      were wiped — the user intentionally set those targets.
+
+    Does NOT call conn.commit() — callers are responsible for committing.
+    Called exclusively from ingest.build_database() after all rows are loaded.
+    """
+    conn.execute("""
+        INSERT OR IGNORE INTO categories (name)
+        SELECT DISTINCT category FROM transactions
+        WHERE category IS NOT NULL AND category != ''
+    """)
+    conn.execute("""
+        DELETE FROM categories
+        WHERE  monthly_budget = 0.0
+          AND  name != 'Uncategorized'
+          AND  name NOT IN (SELECT DISTINCT category FROM transactions)
     """)

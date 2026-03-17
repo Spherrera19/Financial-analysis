@@ -106,4 +106,26 @@ export interface DashboardPayload {
   summaries: Record<PeriodKey, string>;
 }
 
-export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions' | 'settings';
+// ── Equity (Phase 5) ─────────────────────────────────────────────────────
+
+export interface EquityVestSummary {
+  date:                  string;   // YYYY-MM-DD
+  ticker:                string;
+  gross_shares:          number;
+  net_shares:            number;   // gross × 0.70 after 30% tax withholding
+  current_value:         number;   // net_shares × current spot price
+  projected_avg:         number;   // net_shares × GBM median at vest date
+  projected_best:        number;   // net_shares × GBM +1σ at vest date
+  projected_worst:       number;   // net_shares × GBM -1σ at vest date
+  annualized_volatility: number;   // historical σ used in projection
+  days_until_vest:       number;
+}
+
+export interface EquitySection {
+  total_unvested_value:   number;
+  next_vest_date:         string | null;
+  projected_net_cash_12m: number;
+  upcoming_vests:         EquityVestSummary[];
+}
+
+export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions' | 'settings' | 'equity' | 'budget';

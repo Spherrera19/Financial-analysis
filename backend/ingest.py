@@ -16,7 +16,7 @@ import sqlite3
 from pathlib import Path
 
 from backend.classify import TYPE_CODE, classify, is_checking
-from backend.database import init_db
+from backend.database import init_db, sync_categories_from_transactions
 
 # ---------------------------------------------------------------------------
 # Project root — one level above this file (backend/)
@@ -218,6 +218,13 @@ def build_database(
         "SELECT MIN(date), MAX(date) FROM accounts_history WHERE date != ''"
     ).fetchone()
     print(f"  balance date range    : {row[0]}  ->  {row[1]}")
+
+    # ── Sync categories from freshly loaded transactions ──────────────────────
+    print("\n[ingest] Syncing categories table...")
+    sync_categories_from_transactions(conn)
+    conn.commit()
+    n_cats = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
+    print(f"  categories           : {n_cats:>6} rows")
 
     print("\n[ingest] Done.\n")
     return conn
