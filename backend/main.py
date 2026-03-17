@@ -309,6 +309,35 @@ def get_categories(conn: sqlite3.Connection = Depends(get_db)) -> JSONResponse:
     return JSONResponse(content=[dict(r) for r in rows])
 
 
+@app.get("/api/categories/progress")
+def get_categories_progress(conn: sqlite3.Connection = Depends(get_db)) -> JSONResponse:
+    """
+    Return budgeted categories (monthly_budget > 0) with actual spending
+    summed for the current calendar month.  Excludes income (type='I') and
+    internal transfers (type='X') from the spend total.
+    """
+    rows = conn.execute(
+        """
+        SELECT
+            c.name,
+            c.monthly_budget,
+            COALESCE(
+                SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END),
+                0
+            ) AS current_spend
+        FROM categories c
+        LEFT JOIN transactions t
+            ON  t.category = c.name
+            AND strftime('%Y-%m', t.date) = strftime('%Y-%m', 'now')
+            AND t.type NOT IN ('I', 'X')
+        WHERE c.monthly_budget > 0
+        GROUP BY c.id, c.name, c.monthly_budget
+        ORDER BY c.name ASC
+        """
+    ).fetchall()
+    return JSONResponse(content=[dict(r) for r in rows])
+
+
 @app.post("/api/categories")
 def create_category(
     body: CategoryCreate,

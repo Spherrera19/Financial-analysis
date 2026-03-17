@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Chart from 'chart.js/auto';
 
 // ---------------------------------------------------------------------------
@@ -21,14 +22,20 @@ interface CategoryRow {
   monthly_budget: number;
 }
 
+interface CategoryProgress {
+  name:           string;
+  monthly_budget: number;
+  current_spend:  number;
+}
+
 type FundingStatus = 'full' | 'partial' | 'unfunded';
 
 interface Allocation {
   target:    RoutingTarget;
   allocated: number;
   status:    FundingStatus;
-  tierTotal: number;   // sum of all targets in the same tier (for pro-rata label)
-  remaining: number;   // remaining balance when this tier was reached
+  tierTotal: number;
+  remaining: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,9 +49,8 @@ function computeWaterfall(
 ): { allocations: Allocation[]; overflow: number } {
   const divisor = halfMonth ? 2 : 1;
 
-  // Sort by priority, group into tiers
-  const sorted  = [...targets].sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
-  const tiers   = new Map<number, RoutingTarget[]>();
+  const sorted = [...targets].sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+  const tiers  = new Map<number, RoutingTarget[]>();
   for (const t of sorted) {
     if (!tiers.has(t.priority)) tiers.set(t.priority, []);
     tiers.get(t.priority)!.push(t);
@@ -54,30 +60,21 @@ function computeWaterfall(
   const allocations: Allocation[] = [];
 
   for (const [, tier] of tiers) {
-    const tierTotal = tier.reduce((s, t) => s + t.monthly_amount / divisor, 0);
-    const tierRemaining = remaining; // snapshot before this tier consumes anything
+    const tierTotal      = tier.reduce((s, t) => s + t.monthly_amount / divisor, 0);
+    const tierRemaining  = remaining;
 
     if (remaining >= tierTotal) {
-      // Full funding for every target in this tier
       for (const t of tier) {
-        allocations.push({
-          target: t, allocated: t.monthly_amount / divisor,
-          status: 'full', tierTotal, remaining: tierRemaining,
-        });
+        allocations.push({ target: t, allocated: t.monthly_amount / divisor, status: 'full', tierTotal, remaining: tierRemaining });
       }
       remaining -= tierTotal;
     } else if (remaining > 0) {
-      // Proportional allocation across this tier
       for (const t of tier) {
         const share = (t.monthly_amount / divisor) / tierTotal;
-        allocations.push({
-          target: t, allocated: Math.round(remaining * share * 100) / 100,
-          status: 'partial', tierTotal, remaining: tierRemaining,
-        });
+        allocations.push({ target: t, allocated: Math.round(remaining * share * 100) / 100, status: 'partial', tierTotal, remaining: tierRemaining });
       }
       remaining = 0;
     } else {
-      // Nothing left
       for (const t of tier) {
         allocations.push({ target: t, allocated: 0, status: 'unfunded', tierTotal, remaining: 0 });
       }
@@ -117,11 +114,41 @@ const STATUS_LABEL: Record<FundingStatus, string> = {
   unfunded: '✗ Unfunded',
 };
 
-// Doughnut segment colours (one per target slot + overflow)
 const SEGMENT_COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
   '#8b5cf6', '#06b6d4', '#f97316', '#84cc16',
 ];
+
+// ---------------------------------------------------------------------------
+// Wealth Multiplier badge
+// ---------------------------------------------------------------------------
+
+interface WealthBadge {
+  label: string;
+  color: string;
+  glowColor: string;
+}
+
+function getWealthBadge(overflowPct: number): WealthBadge {
+  if (overflowPct >= 30) return { label: '🔥 S-Tier Wealth Builder', color: '#f97316', glowColor: 'rgba(249,115,22,0.45)' };
+  if (overflowPct >= 21) return { label: '✦ Gold Optimizer',        color: '#f59e0b', glowColor: 'rgba(245,158,11,0.35)' };
+  if (overflowPct >= 10) return { label: '◈ Bronze Saver',          color: '#a8a29e', glowColor: 'rgba(168,162,158,0.25)' };
+  return                        { label: '→ Standard Routing',       color: 'var(--accent-blue)', glowColor: 'rgba(59,130,246,0.2)' };
+}
+
+// ---------------------------------------------------------------------------
+// Framer-motion variants
+// ---------------------------------------------------------------------------
+
+const listContainer = {
+  hidden:  {},
+  visible: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
+};
+
+const listRow = {
+  hidden:  { opacity: 0, y: -14 },
+  visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 320, damping: 28 } },
+};
 
 // ---------------------------------------------------------------------------
 // Section A — Paycheck Router
@@ -133,21 +160,24 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
   const chartRef  = useRef<HTMLCanvasElement>(null);
   const chartInst = useRef<Chart | null>(null);
 
-  const paycheck = parseFloat(amount.replace(/,/g, '')) || 0;
+  const paycheck  = parseFloat(amount.replace(/,/g, '')) || 0;
   const hasAmount = paycheck > 0 && targets.length > 0;
   const { allocations, overflow } = hasAmount
     ? computeWaterfall(targets, paycheck, halfMonth)
     : { allocations: [], overflow: 0 };
 
-  // Build chart
+  const overflowPct = paycheck > 0 ? (overflow / paycheck) * 100 : 0;
+  const badge       = getWealthBadge(overflowPct);
+
+  // Build doughnut chart
   useEffect(() => {
     if (!chartRef.current) return;
     if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null; }
     if (!hasAmount) return;
 
-    const labels: string[]  = [];
-    const data:   number[]  = [];
-    const colors: string[]  = [];
+    const labels: string[] = [];
+    const data:   number[] = [];
+    const colors: string[] = [];
 
     allocations.forEach((a, i) => {
       if (a.allocated > 0) {
@@ -159,9 +189,9 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
     if (overflow > 0) {
       labels.push('Debt / Overflow');
       data.push(overflow);
-      colors.push('var(--accent-blue)');
+      colors.push(badge.color.startsWith('rgba') || badge.color.startsWith('#') ? badge.color : '#3b82f6');
     }
-    if (data.length === 0) return; // entire paycheck unfunded (shouldn't happen)
+    if (data.length === 0) return;
 
     chartInst.current = new Chart(chartRef.current, {
       type: 'doughnut',
@@ -180,7 +210,7 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
     });
 
     return () => { chartInst.current?.destroy(); chartInst.current = null; };
-  }, [hasAmount, allocations, overflow, paycheck]);
+  }, [hasAmount, allocations, overflow, paycheck, badge.color]);
 
   const inputStyle: React.CSSProperties = {
     padding: '0.625rem 0.875rem',
@@ -208,7 +238,6 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
           />
         </div>
 
-        {/* Full / Half toggle */}
         <div style={{ display: 'flex', border: '1px solid var(--border-subtle)', borderRadius: '0.5rem', overflow: 'hidden' }}>
           {(['Full Month', 'Half Month'] as const).map((label, i) => {
             const active = (i === 0) === !halfMonth;
@@ -239,11 +268,18 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
             <canvas ref={chartRef} width={180} height={180} />
           </div>
 
-          {/* Allocation list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {/* Staggered allocation list */}
+          <motion.div
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
+            variants={listContainer}
+            initial="hidden"
+            animate="visible"
+            key={`${paycheck}-${halfMonth}`}
+          >
             {allocations.map((a, i) => (
-              <div
+              <motion.div
                 key={i}
+                variants={listRow}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '28px 1fr auto auto',
@@ -273,38 +309,67 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
                   )}
                 </div>
 
-                {/* Allocated amount */}
                 <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: STATUS_COLOR[a.status], whiteSpace: 'nowrap' }}>
                   {fmtDec(a.allocated)}
                 </span>
 
-                {/* Status chip */}
                 <span style={{
                   fontSize: '0.6875rem', fontWeight: 600, padding: '0.15rem 0.5rem',
                   borderRadius: '999px', whiteSpace: 'nowrap',
-                  color: STATUS_COLOR[a.status],
-                  background: STATUS_BG[a.status],
+                  color: STATUS_COLOR[a.status], background: STATUS_BG[a.status],
                 }}>
                   {STATUS_LABEL[a.status]}
                 </span>
-              </div>
+              </motion.div>
             ))}
 
-            {/* Overflow / Debt row */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: '28px 1fr auto auto',
-              alignItems: 'center', gap: '0.625rem',
-              padding: '0.5rem 0.75rem', borderRadius: '0.5rem',
-              background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
-            }}>
-              <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center', background: 'var(--bg-muted)', borderRadius: '0.25rem', padding: '0.1rem 0.3rem' }}>↩</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Debt / Overflow</span>
-              <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--accent-blue)', whiteSpace: 'nowrap' }}>{fmtDec(overflow)}</span>
-              <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.15rem 0.5rem', borderRadius: '999px', color: 'var(--accent-blue)', background: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
-                Send to Debt
+            {/* ── Premium Overflow / Debt row ── */}
+            <motion.div
+              variants={listRow}
+              style={{
+                display: 'grid', gridTemplateColumns: '28px 1fr auto auto',
+                alignItems: 'center', gap: '0.625rem',
+                padding: '0.625rem 0.75rem', borderRadius: '0.5rem',
+                background: `color-mix(in srgb, ${badge.color} 8%, var(--bg-surface))`,
+                border: `1.5px solid ${badge.color}`,
+                boxShadow: `0 0 12px ${badge.glowColor}, inset 0 0 8px ${badge.glowColor}`,
+                transition: 'box-shadow 0.3s ease',
+              }}
+            >
+              {/* Icon */}
+              <span style={{
+                fontSize: '0.75rem', fontWeight: 700, textAlign: 'center',
+                color: badge.color,
+                background: `color-mix(in srgb, ${badge.color} 20%, transparent)`,
+                borderRadius: '0.25rem', padding: '0.1rem 0.3rem',
+              }}>↩</span>
+
+              {/* Name + wealth multiplier label */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 700, color: badge.color }}>
+                  Debt / Overflow
+                </div>
+                <div style={{ fontSize: '0.6875rem', color: badge.color, opacity: 0.8, marginTop: '0.1rem' }}>
+                  {overflowPct.toFixed(1)}% of paycheck
+                </div>
+              </div>
+
+              <span style={{ fontSize: '0.9375rem', fontWeight: 800, color: badge.color, whiteSpace: 'nowrap' }}>
+                {fmtDec(overflow)}
               </span>
-            </div>
-          </div>
+
+              {/* Wealth badge chip */}
+              <span style={{
+                fontSize: '0.6875rem', fontWeight: 700, padding: '0.2rem 0.6rem',
+                borderRadius: '999px', whiteSpace: 'nowrap',
+                color: badge.color,
+                background: `color-mix(in srgb, ${badge.color} 18%, transparent)`,
+                border: `1px solid color-mix(in srgb, ${badge.color} 40%, transparent)`,
+              }}>
+                {badge.label}
+              </span>
+            </motion.div>
+          </motion.div>
         </div>
       )}
 
@@ -334,7 +399,6 @@ function RoutingEditor({
   const [saveState, setSave]    = useState<SaveState>('idle');
   const [saveError, setSaveErr] = useState<string | null>(null);
 
-  // Keep draft in sync when parent reloads (e.g. after save → refetch)
   useEffect(() => { setDraft(targets.map(t => ({ ...t }))); }, [targets]);
 
   const updateField = (idx: number, field: keyof RoutingTarget, value: string | number) => {
@@ -355,7 +419,7 @@ function RoutingEditor({
         throw new Error(err.detail ?? `HTTP ${res.status}`);
       }
       setSave('saved');
-      onSaved(); // triggers parent refetch → updates draft via useEffect above
+      onSaved();
     } catch (e) {
       setSave('error');
       setSaveErr((e as Error).message);
@@ -373,7 +437,6 @@ function RoutingEditor({
 
   return (
     <div>
-      {/* Header row */}
       <div style={{ display: 'grid', gridTemplateColumns: COL, gap: '0.5rem', padding: '0.4rem 0.875rem', background: 'var(--bg-muted)', borderRadius: '0.625rem 0.625rem 0 0', border: '1px solid var(--border-subtle)', borderBottom: 'none' }}>
         {['Bucket Name', 'Category', 'Priority', 'Monthly ($)'].map(h => (
           <span key={h} style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
@@ -386,9 +449,9 @@ function RoutingEditor({
             key={i}
             style={{ display: 'grid', gridTemplateColumns: COL, gap: '0.5rem', alignItems: 'center', padding: '0.5rem 0.875rem', borderBottom: i < draft.length - 1 ? '1px solid var(--border-subtle)' : 'none', background: 'var(--bg-surface)' }}
           >
-            <input style={inputStyle} value={t.name} onChange={e => updateField(i, 'name', e.target.value)} />
-            <input style={inputStyle} value={t.category} onChange={e => updateField(i, 'category', e.target.value)} />
-            <input style={inputStyle} type="number" min={1} max={99} value={t.priority} onChange={e => updateField(i, 'priority', parseInt(e.target.value) || 99)} />
+            <input style={inputStyle} value={t.name}          onChange={e => updateField(i, 'name', e.target.value)} />
+            <input style={inputStyle} value={t.category}      onChange={e => updateField(i, 'category', e.target.value)} />
+            <input style={inputStyle} type="number" min={1} max={99} value={t.priority}       onChange={e => updateField(i, 'priority', parseInt(e.target.value) || 99)} />
             <input style={inputStyle} type="number" min={0} step={10} value={t.monthly_amount} onChange={e => updateField(i, 'monthly_amount', parseFloat(e.target.value) || 0)} />
           </div>
         ))}
@@ -410,7 +473,166 @@ function RoutingEditor({
 }
 
 // ---------------------------------------------------------------------------
-// Section C — Category Manager
+// Section C — Live Pacing (health bars)
+// ---------------------------------------------------------------------------
+
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function HealthBar({ item }: { item: CategoryProgress }) {
+  const now           = new Date();
+  const daysInMonth   = getDaysInMonth(now.getFullYear(), now.getMonth());
+  const timeElapsed   = now.getDate() / daysInMonth;           // 0–1
+  const spendPct      = item.current_spend / item.monthly_budget; // 0–1+
+
+  // Color logic
+  let barColor: string;
+  if (spendPct >= 1.0) {
+    barColor = '#ef4444'; // red — over budget
+  } else if (spendPct > timeElapsed) {
+    barColor = '#f59e0b'; // amber — ahead of pace
+  } else {
+    barColor = '#10b981'; // green — on/under pace
+  }
+
+  const fillPct   = Math.min(spendPct * 100, 100);
+  const ghostLeft = Math.min(timeElapsed * 100, 100);
+
+  return (
+    <div style={{ marginBottom: '0.875rem' }}>
+      {/* Label row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.3rem' }}>
+        <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>{item.name}</span>
+        <span style={{ fontSize: '0.75rem', color: spendPct >= 1 ? '#ef4444' : 'var(--text-muted)', fontWeight: spendPct >= 1 ? 700 : 400 }}>
+          {fmtDec(item.current_spend)} / {fmt(item.monthly_budget)}
+          {spendPct >= 1 && <span style={{ marginLeft: '0.35rem' }}>⚠</span>}
+        </span>
+      </div>
+
+      {/* Bar track */}
+      <div style={{ position: 'relative', height: 10, borderRadius: 999, background: 'var(--bg-muted)', overflow: 'visible' }}>
+        {/* Fill */}
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${fillPct}%` }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          style={{
+            position: 'absolute', top: 0, left: 0, height: '100%',
+            borderRadius: 999,
+            background: barColor,
+            boxShadow: spendPct >= 1 ? `0 0 8px ${barColor}88` : undefined,
+          }}
+        />
+
+        {/* Ghost car — time elapsed marker */}
+        <div
+          title={`${Math.round(timeElapsed * 100)}% of month elapsed`}
+          style={{
+            position: 'absolute',
+            top: -3,
+            left: `${ghostLeft}%`,
+            transform: 'translateX(-50%)',
+            width: 2,
+            height: 16,
+            borderRadius: 2,
+            background: 'var(--text-muted)',
+            opacity: 0.6,
+            zIndex: 2,
+          }}
+        />
+      </div>
+
+      {/* Sub-label */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+        <span style={{ fontSize: '0.6875rem', color: barColor, fontWeight: 600 }}>
+          {spendPct >= 1
+            ? `${((spendPct - 1) * 100).toFixed(0)}% over budget`
+            : spendPct > timeElapsed
+              ? `${((spendPct - timeElapsed) * 100).toFixed(0)}% ahead of pace`
+              : `${((timeElapsed - spendPct) * 100).toFixed(0)}% under pace`}
+        </span>
+        <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+          Day {now.getDate()} / {daysInMonth}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function LivePacing() {
+  const [items, setItems]     = useState<CategoryProgress[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API}/api/categories/progress`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: CategoryProgress[]) => { setItems(d); setLoading(false); })
+      .catch((e: Error) => { setError(e.message); setLoading(false); });
+  }, []);
+
+  if (loading) return <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading live spend data…</p>;
+  if (error)   return <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load: {error}</p>;
+
+  if (items.length === 0) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', background: 'var(--bg-surface)', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)' }}>
+        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>💰</div>
+        <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>No budgets set yet</p>
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+          Switch to <strong>Edit Budgets</strong> to set monthly targets for your categories.
+          Only categories with a budget &gt; $0 appear here.
+        </p>
+      </div>
+    );
+  }
+
+  // Sort: over-budget first, then by pacing deficit
+  const now         = new Date();
+  const daysInMonth = getDaysInMonth(now.getFullYear(), now.getMonth());
+  const timeElapsed = now.getDate() / daysInMonth;
+
+  const sorted = [...items].sort((a, b) => {
+    const pctA = a.current_spend / a.monthly_budget;
+    const pctB = b.current_spend / b.monthly_budget;
+    // Over-budget items bubble to top
+    if (pctA >= 1 && pctB < 1) return -1;
+    if (pctB >= 1 && pctA < 1) return 1;
+    // Then sort by how far over pace (most problematic first)
+    return (pctB - timeElapsed) - (pctA - timeElapsed);
+  });
+
+  return (
+    <div>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+        {[
+          { color: '#10b981', label: 'Under pace — on track' },
+          { color: '#f59e0b', label: 'Ahead of pace — watch it' },
+          { color: '#ef4444', label: 'Over budget' },
+        ].map(({ color, label }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
+            {label}
+          </div>
+        ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <div style={{ width: 2, height: 12, background: 'var(--text-muted)', opacity: 0.6, borderRadius: 2, flexShrink: 0 }} />
+          Pace marker (today)
+        </div>
+      </div>
+
+      {sorted.map(item => (
+        <HealthBar key={item.name} item={item} />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section C — Category Manager (Edit Budgets)
 // ---------------------------------------------------------------------------
 
 interface CategoryRowDraft extends CategoryRow {
@@ -426,6 +648,7 @@ function toDraft(c: CategoryRow): CategoryRowDraft {
 }
 
 function CategoryManager() {
+  const [catTab, setCatTab]     = useState<'pacing' | 'budgets'>('pacing');
   const [rows, setRows]         = useState<CategoryRowDraft[]>([]);
   const [loading, setLoading]   = useState(true);
   const [loadErr, setLoadErr]   = useState<string | null>(null);
@@ -519,107 +742,155 @@ function CategoryManager() {
     boxSizing: 'border-box',
   };
 
-  if (loading) return <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading categories…</p>;
-  if (loadErr)  return <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load categories: {loadErr}</p>;
-
   const COL = '1fr 130px 170px';
+
+  // ── Tab switcher ──
+  const TabBar = () => (
+    <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border-subtle)', borderRadius: '0.625rem', overflow: 'hidden', width: 'fit-content', marginBottom: '1.25rem' }}>
+      {([['pacing', 'Live Pacing'], ['budgets', 'Edit Budgets']] as const).map(([id, label]) => {
+        const active = catTab === id;
+        return (
+          <button
+            key={id}
+            onClick={() => setCatTab(id)}
+            style={{
+              padding: '0.5rem 1.125rem', border: 'none', cursor: 'pointer',
+              fontSize: '0.8125rem', fontWeight: active ? 600 : 400,
+              background: active ? 'var(--accent-blue)' : 'var(--bg-surface)',
+              color: active ? '#fff' : 'var(--text-secondary)',
+              transition: 'background 0.15s ease, color 0.15s ease',
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div>
-      {/* Header row */}
-      <div style={{ display: 'grid', gridTemplateColumns: COL, gap: '0.5rem', padding: '0.4rem 0.875rem', background: 'var(--bg-muted)', borderRadius: '0.625rem 0.625rem 0 0', border: '1px solid var(--border-subtle)', borderBottom: 'none' }}>
-        {['Category Name', 'Monthly Budget', 'Actions'].map(h => (
-          <span key={h} style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
-        ))}
-      </div>
+      <TabBar />
 
-      <div style={{ border: '1px solid var(--border-subtle)', borderTop: 'none', borderRadius: '0 0 0.625rem 0.625rem', overflow: 'hidden', marginBottom: '0.75rem' }}>
-        {rows.map((row, idx) => (
-          <div key={row.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: COL, gap: '0.5rem', alignItems: 'center', padding: '0.5rem 0.875rem' }}>
-              {/* Name */}
-              <input
-                style={inputStyle}
-                value={row._nameDraft}
-                onChange={e => updateRow(idx, { _nameDraft: e.target.value, _saveState: 'idle', _saveError: null })}
-              />
-
-              {/* Budget */}
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.875rem', pointerEvents: 'none' }}>$</span>
-                <input
-                  style={{ ...inputStyle, paddingLeft: '1.375rem' }}
-                  type="number" min={0} step={10}
-                  value={row._budgetDraft}
-                  onChange={e => updateRow(idx, { _budgetDraft: e.target.value, _saveState: 'idle', _saveError: null })}
-                />
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <button
-                  onClick={() => handleSave(idx)}
-                  disabled={row._saveState === 'saving'}
-                  style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: 'none', background: row._saveState === 'saving' ? 'var(--border-subtle)' : 'var(--accent-blue)', color: row._saveState === 'saving' ? 'var(--text-muted)' : '#fff', fontSize: '0.8125rem', fontWeight: 600, cursor: row._saveState === 'saving' ? 'not-allowed' : 'pointer' }}
-                >
-                  {row._saveState === 'saving' ? '…' : 'Save'}
-                </button>
-                {!row._confirmDel ? (
-                  <button
-                    onClick={() => updateRow(idx, { _confirmDel: true })}
-                    style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--accent-red)', fontSize: '0.8125rem', cursor: 'pointer' }}
-                  >
-                    Delete
-                  </button>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>→ Uncategorized?</span>
-                    <button onClick={() => handleDelete(idx)} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: 'none', background: 'var(--accent-red)', color: '#fff', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Yes</button>
-                    <button onClick={() => updateRow(idx, { _confirmDel: false })} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer' }}>No</button>
-                  </div>
-                )}
-                {row._saveState === 'saved' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-green)' }}>✓</span>}
-                {row._saveState === 'error'  && <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }} title={row._saveError ?? ''}>⚠</span>}
-              </div>
-            </div>
-
-            {/* Inline error */}
-            {row._saveState === 'error' && row._saveError && (
-              <div style={{ padding: '0.25rem 0.875rem 0.375rem', fontSize: '0.75rem', color: 'var(--accent-red)' }}>{row._saveError}</div>
-            )}
-          </div>
-        ))}
-
-        {/* Add new row */}
-        {adding ? (
-          <div style={{ padding: '0.5rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)' }}>
-            <input
-              autoFocus
-              placeholder="New category name…"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') { setAdding(false); setNewName(''); setAddErr(null); } }}
-              style={{ ...inputStyle, width: 240 }}
-            />
-            <button onClick={handleAdd} style={{ padding: '0.375rem 0.875rem', borderRadius: '0.375rem', border: 'none', background: 'var(--accent-blue)', color: '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}>Add</button>
-            <button onClick={() => { setAdding(false); setNewName(''); setAddErr(null); }} style={{ padding: '0.375rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.875rem', cursor: 'pointer' }}>Cancel</button>
-            {addErr && <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }}>{addErr}</span>}
-          </div>
+      <AnimatePresence mode="wait">
+        {catTab === 'pacing' ? (
+          <motion.div
+            key="pacing"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+          >
+            <LivePacing />
+          </motion.div>
         ) : (
-          <div style={{ padding: '0.5rem 0.875rem', background: 'var(--bg-surface)' }}>
-            <button
-              onClick={() => setAdding(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.8125rem', cursor: 'pointer' }}
-            >
-              <span style={{ fontSize: '1rem', lineHeight: 1 }}>+</span> Add Category
-            </button>
-          </div>
-        )}
-      </div>
+          <motion.div
+            key="budgets"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+          >
+            {loading && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading categories…</p>}
+            {loadErr  && <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load categories: {loadErr}</p>}
 
-      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-        Renaming a category updates all historical transactions automatically. Deleting reassigns transactions to 'Uncategorized'.
-      </p>
+            {!loading && !loadErr && (
+              <>
+                {/* Header row */}
+                <div style={{ display: 'grid', gridTemplateColumns: COL, gap: '0.5rem', padding: '0.4rem 0.875rem', background: 'var(--bg-muted)', borderRadius: '0.625rem 0.625rem 0 0', border: '1px solid var(--border-subtle)', borderBottom: 'none' }}>
+                  {['Category Name', 'Monthly Budget', 'Actions'].map(h => (
+                    <span key={h} style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+                  ))}
+                </div>
+
+                <div style={{ border: '1px solid var(--border-subtle)', borderTop: 'none', borderRadius: '0 0 0.625rem 0.625rem', overflow: 'hidden', marginBottom: '0.75rem' }}>
+                  {rows.map((row, idx) => (
+                    <div key={row.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: COL, gap: '0.5rem', alignItems: 'center', padding: '0.5rem 0.875rem' }}>
+                        <input
+                          style={inputStyle}
+                          value={row._nameDraft}
+                          onChange={e => updateRow(idx, { _nameDraft: e.target.value, _saveState: 'idle', _saveError: null })}
+                        />
+
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.875rem', pointerEvents: 'none' }}>$</span>
+                          <input
+                            style={{ ...inputStyle, paddingLeft: '1.375rem' }}
+                            type="number" min={0} step={10}
+                            value={row._budgetDraft}
+                            onChange={e => updateRow(idx, { _budgetDraft: e.target.value, _saveState: 'idle', _saveError: null })}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <button
+                            onClick={() => handleSave(idx)}
+                            disabled={row._saveState === 'saving'}
+                            style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: 'none', background: row._saveState === 'saving' ? 'var(--border-subtle)' : 'var(--accent-blue)', color: row._saveState === 'saving' ? 'var(--text-muted)' : '#fff', fontSize: '0.8125rem', fontWeight: 600, cursor: row._saveState === 'saving' ? 'not-allowed' : 'pointer' }}
+                          >
+                            {row._saveState === 'saving' ? '…' : 'Save'}
+                          </button>
+                          {!row._confirmDel ? (
+                            <button
+                              onClick={() => updateRow(idx, { _confirmDel: true })}
+                              style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--accent-red)', fontSize: '0.8125rem', cursor: 'pointer' }}
+                            >
+                              Delete
+                            </button>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>→ Uncategorized?</span>
+                              <button onClick={() => handleDelete(idx)} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: 'none', background: 'var(--accent-red)', color: '#fff', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Yes</button>
+                              <button onClick={() => updateRow(idx, { _confirmDel: false })} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer' }}>No</button>
+                            </div>
+                          )}
+                          {row._saveState === 'saved' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-green)' }}>✓</span>}
+                          {row._saveState === 'error'  && <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }} title={row._saveError ?? ''}>⚠</span>}
+                        </div>
+                      </div>
+
+                      {row._saveState === 'error' && row._saveError && (
+                        <div style={{ padding: '0.25rem 0.875rem 0.375rem', fontSize: '0.75rem', color: 'var(--accent-red)' }}>{row._saveError}</div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add new row */}
+                  {adding ? (
+                    <div style={{ padding: '0.5rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)' }}>
+                      <input
+                        autoFocus
+                        placeholder="New category name…"
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') { setAdding(false); setNewName(''); setAddErr(null); } }}
+                        style={{ ...inputStyle, width: 240 }}
+                      />
+                      <button onClick={handleAdd} style={{ padding: '0.375rem 0.875rem', borderRadius: '0.375rem', border: 'none', background: 'var(--accent-blue)', color: '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                      <button onClick={() => { setAdding(false); setNewName(''); setAddErr(null); }} style={{ padding: '0.375rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.875rem', cursor: 'pointer' }}>Cancel</button>
+                      {addErr && <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }}>{addErr}</span>}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.5rem 0.875rem', background: 'var(--bg-surface)' }}>
+                      <button
+                        onClick={() => setAdding(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.8125rem', cursor: 'pointer' }}
+                      >
+                        <span style={{ fontSize: '1rem', lineHeight: 1 }}>+</span> Add Category
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Renaming a category updates all historical transactions automatically. Deleting reassigns transactions to 'Uncategorized'.
+                </p>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -629,9 +900,9 @@ function CategoryManager() {
 // ---------------------------------------------------------------------------
 
 export function BudgetTab() {
-  const [targets, setTargets]     = useState<RoutingTarget[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [loadErr, setLoadErr]     = useState<string | null>(null);
+  const [targets, setTargets] = useState<RoutingTarget[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const loadTargets = useCallback(async () => {
     setLoading(true); setLoadErr(null);
@@ -662,12 +933,12 @@ export function BudgetTab() {
       </h1>
       <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
         Route a paycheck through your funding buckets using strict priority ordering.
-        Adjust budget targets and manage transaction categories below.
+        Adjust budget targets and track live spending pace below.
       </p>
 
       {/* ── Section A: Paycheck Router ── */}
       <h2 style={sectionHeader}>Paycheck Router</h2>
-      {loading && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading routing targets…</p>}
+      {loading  && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading routing targets…</p>}
       {loadErr  && <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load targets: {loadErr}</p>}
       {!loading && !loadErr && <PaycheckRouter targets={targets} />}
 
@@ -686,8 +957,8 @@ export function BudgetTab() {
       {/* ── Section C: Category Manager ── */}
       <h2 style={sectionHeader}>Transaction Categories &amp; Budgets</h2>
       <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Set monthly budget targets for each spending category. Categories are synced automatically
-        from your transaction data when you import a new CSV.
+        Track live spending pace against monthly targets, or edit category budgets.
+        The pace marker shows where you <em>should</em> be given today's date.
       </p>
       <CategoryManager />
 
