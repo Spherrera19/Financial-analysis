@@ -50,24 +50,61 @@ CREATE TABLE IF NOT EXISTS categories (
 
 ### 1.3 `sync_categories_from_transactions(conn)`
 
-A standalone helper function in `backend/database.py`:
+A standalone helper function in `backend/database.py`. Does **not** call `conn.commit()` internally — callers are responsible for committing, consistent with the single-commit pattern in `init_db()`.
 
 ```python
 def sync_categories_from_transactions(conn):
+    # Add any categories present in transactions but not yet in the table
     conn.execute("""
         INSERT OR IGNORE INTO categories (name)
         SELECT DISTINCT category FROM transactions
     """)
-    conn.commit()
+    # Prune stale auto-synced rows: categories no longer present in any
+    # transaction AND with no user-set budget (monthly_budget = 0.0).
+    # Categories with a non-zero budget are preserved even if no matching
+    # transactions exist yet — the user intentionally set that budget target.
+    conn.execute("""
+        DELETE FROM categories
+        WHERE monthly_budget = 0.0
+          AND name != 'Uncategorized'
+          AND name NOT IN (SELECT DISTINCT category FROM transactions)
+    """)
+    # Caller commits
 ```
 
-**Called from:**
-- `backend/ingest.py` — at the end of `build_database()` after all transaction rows are inserted
-- `backend/_migrate()` — to backfill categories from existing transaction data on first migration
+SQLite uses `DEFAULT 0.0` for `monthly_budget` on omitted-column inserts, so this is safe.
+
+**One call site only — `backend/ingest.py`.**
+
+Called at the end of `build_database()` after all transaction rows are inserted, before the final commit. This is the authoritative path that populates and prunes `categories` from live transaction data.
+
+`sync_categories_from_transactions` is **not** called from `init_db()`. Calling it there would fire on every FastAPI `get_db()` request (which calls `init_db()` per-connection), and the prune step would silently delete any user-created category with `monthly_budget = 0.0` that has no transactions yet — a data-loss bug. The ingest-only call site avoids this.
+
+`_migrate()` does **not** call `sync_categories_from_transactions`. The `init_db()` call chain remains:
+```
+init_db()
+  → _create_tables(conn)
+  → _migrate(conn)
+  → conn.commit()
+  # No sync here — ingest.py is the sole call site
+```
 
 ### 1.4 Migration safety
 
 Both tables are added via `_migrate()` using `CREATE TABLE IF NOT EXISTS`. No destructive ALTER TABLE operations are needed for initial creation. The pre-seed insert is guarded by `SELECT COUNT(*) FROM routing_targets` — only runs when the count is 0.
+
+**One-time backfill for existing databases:** After creating the `categories` table in `_migrate()`, a one-time `INSERT OR IGNORE` populates it from whatever transaction data already exists in the database. This covers users upgrading from a prior version who have not yet re-run ingest:
+
+```python
+# v4 migration: backfill categories from existing transactions (safe, one-time)
+conn.execute("""
+    INSERT OR IGNORE INTO categories (name)
+    SELECT DISTINCT category FROM transactions
+    WHERE category IS NOT NULL AND category != ''
+""")
+```
+
+This does **not** include the prune step from `sync_categories_from_transactions` — pruning is exclusively `ingest.py`'s job. `INSERT OR IGNORE` means existing rows (with user-set budgets) are never touched.
 
 ---
 
@@ -75,7 +112,7 @@ Both tables are added via `_migrate()` using `CREATE TABLE IF NOT EXISTS`. No de
 
 ```python
 class RoutingTarget(BaseModel):
-    id:             int
+    id:             int | None = None   # None for new rows not yet in the DB
     name:           str
     monthly_amount: float
     category:       str
@@ -110,7 +147,11 @@ class CategoryUpdate(BaseModel):
 
 **`PUT /api/routing`**
 - Body: `RoutingUpdate` (full list of targets)
-- Deletes all existing rows, bulk-inserts the new set atomically
+- Executes atomically in a single SQLite transaction:
+  1. `DELETE FROM routing_targets`
+  2. `DELETE FROM sqlite_sequence WHERE name='routing_targets'` — resets the autoincrement counter so IDs stay predictable after repeated saves
+  3. Bulk-INSERT all rows from the request body
+- Because the DELETE+re-INSERT pattern causes SQLite to assign **new IDs** to every row on every save (even unchanged rows), any ID the frontend held before the PUT is now stale. The PUT response returns only `{"saved": N}` — no IDs. Therefore the frontend **must refetch** `GET /api/routing` immediately after a successful PUT to get the current server-assigned IDs before any further mutation
 - Returns `{"saved": N}`
 - Follows the same bulk-upsert pattern as `POST /api/debt/settings`
 
@@ -127,13 +168,15 @@ class CategoryUpdate(BaseModel):
 
 **`PUT /api/categories/{id}`**
 - Body: `CategoryUpdate` (name and/or monthly_budget, both optional)
-- If `name` is provided and differs from current name: executes `UPDATE transactions SET category = new_name WHERE category = old_name` in the same transaction as the category rename — atomic, no orphaned transaction rows
+- If `name` is provided and differs from current name:
+  - First checks that the new name does not already exist in `categories`; raises **409** if it does (same guard as POST)
+  - Executes `UPDATE transactions SET category = new_name WHERE category = old_name` in the same database transaction as the category rename — atomic, no orphaned rows
 - Returns the updated `CategoryRow`
 
 **`DELETE /api/categories/{id}`**
 - Fetches current name before deleting
+- Ensures 'Uncategorized' exists **first** via `INSERT OR IGNORE INTO categories (name) VALUES ('Uncategorized')` — must precede the transaction cascade so 'Uncategorized' is always a valid category
 - Executes `UPDATE transactions SET category = 'Uncategorized' WHERE category = old_name`
-- Ensures 'Uncategorized' exists in `categories` via `INSERT OR IGNORE INTO categories (name) VALUES ('Uncategorized')`
 - Deletes the category row
 - Returns `{"deleted": old_name}`
 
@@ -143,10 +186,52 @@ class CategoryUpdate(BaseModel):
 
 ### 4.1 Navigation
 
-- Add `'budget'` to the `TabKey` union in `frontend/src/types.ts`
-- Add nav item to `NAV_ITEMS` in `Sidebar.tsx`: `{ id: 'budget', label: 'Budget & Routing', icon: SplitSquareVertical }`
-- Register in `App.tsx` renderTab switch: `case 'budget': return <BudgetTab />;`
-- `BudgetTab` is data-independent (like EquityTab) — added outside the `data &&` guard, handled via its own internal fetch
+- Add `'budget'` to the `TabKey` union in `frontend/src/types.ts`:
+  ```ts
+  export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions' | 'settings' | 'equity' | 'budget';
+  ```
+- Add nav item to `NAV_ITEMS` in `Sidebar.tsx`: `{ id: 'budget', label: 'Budget & Routing', icon: Landmark }` — `Landmark` (bank building icon) is imported from `lucide-react`. Its presence in the installed version has been verified. `lucide-react` is already a project dependency used in `Sidebar.tsx`.
+- `BudgetTab` is **independent of `data.json`** — it manages its own fetch state internally. Both `BudgetTab` and `EquityTab` follow the same pre-guard pattern in `App.tsx`.
+
+**Two coordinated changes to `App.tsx` are required:**
+
+1. **In `renderTab()`**: Remove `case 'equity'` (moved to pre-guard). Add `case 'budget': return null;` so the switch remains exhaustive over the new `TabKey` union and TypeScript does not error.
+
+2. **Replace the current `settings`-only pre-guard check** with a unified chain covering all three data-independent tabs:
+
+```tsx
+{activeTab === 'settings' ? (
+  <div style={{ padding: '1.5rem' }}>
+    <SettingsTab activeTheme={activeTheme} onThemeChange={handleThemeChange} onRefresh={refreshData} />
+  </div>
+) : activeTab === 'equity' ? (
+  <div style={{ padding: '1.5rem' }}>
+    <EquityTab />
+  </div>
+) : activeTab === 'budget' ? (
+  <div style={{ padding: '1.5rem' }}>
+    <BudgetTab />
+  </div>
+) : (
+  // data guard block — loading, error, and data-dependent tabs
+  <>
+    {loading && <LoadingScreen />}
+    {error && <ErrorScreen message={error} />}
+    {data && (
+      <>
+        <TopBar ... />
+        <div style={{ padding: '1.5rem' }}>
+          <AnimatePresence mode="wait">
+            <motion.div key={activeTab} ...>{renderTab()}</motion.div>
+          </AnimatePresence>
+        </div>
+      </>
+    )}
+  </>
+)}
+```
+
+Each of the three pre-guard tabs manages its own loading/error state via internal `useState` + `useEffect` hooks.
 
 ### 4.2 File: `frontend/src/pages/BudgetTab.tsx`
 
@@ -198,6 +283,7 @@ Single file, three internal sections.
 
 - Inline-editable table: Name | Category | Priority | Monthly Target ($) | Actions
 - Edit-on-click inputs, `Save All` button posts to `PUT /api/routing`
+- After a successful PUT, call the `loadTargets()` fetch function (which fires `GET /api/routing`) inside the `.then()` callback — mandatory because IDs change on every replace; any stale local IDs must be discarded before the next save
 - Follows same draft-state pattern as DebtConfigSection (edit locally, commit on save)
 
 #### Section C — Category Manager (bottom)
@@ -249,12 +335,12 @@ User deletes category
 
 | File | Change |
 |---|---|
-| `backend/database.py` | Add `routing_targets`, `categories` tables; `sync_categories_from_transactions()`; migration seeding |
+| `backend/database.py` | Add `routing_targets`, `categories` tables; `sync_categories_from_transactions()`; migration seeding; call sync from `init_db()` |
 | `backend/models.py` | Add `RoutingTarget`, `RoutingUpdate`, `CategoryRow`, `CategoryCreate`, `CategoryUpdate` |
 | `backend/main.py` | Add routing + category API routes; call `sync_categories_from_transactions` in upload handler |
 | `backend/ingest.py` | Call `sync_categories_from_transactions(conn)` at end of `build_database()` |
-| `frontend/src/types.ts` | Add `'budget'` to `TabKey` |
+| `frontend/src/types.ts` | Add `'budget'` to `TabKey` union |
 | `frontend/src/components/layout/Sidebar.tsx` | Add Budget & Routing nav item |
 | `frontend/src/pages/BudgetTab.tsx` | New file — full tab implementation |
 | `frontend/src/pages/index.ts` | Export `BudgetTab` |
-| `frontend/src/App.tsx` | Register BudgetTab in renderTab and outside data guard |
+| `frontend/src/App.tsx` | Move `EquityTab` out of `renderTab()`; register `EquityTab`, `BudgetTab`, `SettingsTab` in pre-guard chain |
