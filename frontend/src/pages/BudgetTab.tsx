@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Chart from 'chart.js/auto';
 
@@ -386,44 +387,27 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
 // Section B — Routing Targets editor
 // ---------------------------------------------------------------------------
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-
-function RoutingEditor({
-  targets,
-  onSaved,
-}: {
-  targets: RoutingTarget[];
-  onSaved: () => void;
-}) {
-  const [draft, setDraft]       = useState<RoutingTarget[]>(() => targets.map(t => ({ ...t })));
-  const [saveState, setSave]    = useState<SaveState>('idle');
-  const [saveError, setSaveErr] = useState<string | null>(null);
+function RoutingEditor({ targets }: { targets: RoutingTarget[] }) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<RoutingTarget[]>(() => targets.map(t => ({ ...t })));
 
   useEffect(() => { setDraft(targets.map(t => ({ ...t }))); }, [targets]);
 
-  const updateField = (idx: number, field: keyof RoutingTarget, value: string | number) => {
-    setDraft(prev => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));
-    setSave('idle');
-  };
-
-  const handleSave = async () => {
-    setSave('saving'); setSaveErr(null);
-    try {
-      const res = await fetch(`${API}/api/routing`, {
+  const saveMutation = useMutation({
+    mutationFn: (ts: RoutingTarget[]) =>
+      fetch(`${API}/api/routing`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets: draft }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { detail?: string };
-        throw new Error(err.detail ?? `HTTP ${res.status}`);
-      }
-      setSave('saved');
-      onSaved();
-    } catch (e) {
-      setSave('error');
-      setSaveErr((e as Error).message);
-    }
+        body: JSON.stringify({ targets: ts }),
+      }).then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error((e as { detail?: string }).detail ?? `HTTP ${r.status}`)));
+        return r.json();
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['routing'] }),
+  });
+
+  const updateField = (idx: number, field: keyof RoutingTarget, value: string | number) => {
+    setDraft(prev => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));
   };
 
   const inputStyle: React.CSSProperties = {
@@ -459,14 +443,14 @@ function RoutingEditor({
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <button
-          onClick={handleSave}
-          disabled={saveState === 'saving'}
-          style={{ padding: '0.5rem 1.25rem', borderRadius: '0.5rem', border: 'none', background: saveState === 'saving' ? 'var(--border-subtle)' : 'var(--accent-blue)', color: saveState === 'saving' ? 'var(--text-muted)' : '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: saveState === 'saving' ? 'not-allowed' : 'pointer' }}
+          onClick={() => saveMutation.mutate(draft)}
+          disabled={saveMutation.isPending}
+          style={{ padding: '0.5rem 1.25rem', borderRadius: '0.5rem', border: 'none', background: saveMutation.isPending ? 'var(--border-subtle)' : 'var(--accent-blue)', color: saveMutation.isPending ? 'var(--text-muted)' : '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: saveMutation.isPending ? 'not-allowed' : 'pointer' }}
         >
-          {saveState === 'saving' ? 'Saving…' : 'Save Targets'}
+          {saveMutation.isPending ? 'Saving…' : 'Save Targets'}
         </button>
-        {saveState === 'saved' && <span style={{ fontSize: '0.875rem', color: 'var(--accent-green)' }}>✓ Saved</span>}
-        {saveState === 'error'  && <span style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Error: {saveError}</span>}
+        {saveMutation.isSuccess && <span style={{ fontSize: '0.875rem', color: 'var(--accent-green)' }}>✓ Saved</span>}
+        {saveMutation.isError   && <span style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Error: {saveMutation.error?.message}</span>}
       </div>
     </div>
   );
@@ -561,20 +545,16 @@ function HealthBar({ item }: { item: CategoryProgress }) {
 }
 
 function LivePacing() {
-  const [items, setItems]     = useState<CategoryProgress[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`${API}/api/categories/progress`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((d: CategoryProgress[]) => { setItems(d); setLoading(false); })
-      .catch((e: Error) => { setError(e.message); setLoading(false); });
-  }, []);
+  const { data: items = [], isLoading: loading, error } =
+    useQuery<CategoryProgress[]>({
+      queryKey: ['categories/progress'],
+      queryFn:  () =>
+        fetch(`${API}/api/categories/progress`)
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    });
 
   if (loading) return <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading live spend data…</p>;
-  if (error)   return <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load: {error}</p>;
+  if (error)   return <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load: {(error as Error).message}</p>;
 
   if (items.length === 0) {
     return (
@@ -638,7 +618,7 @@ function LivePacing() {
 interface CategoryRowDraft extends CategoryRow {
   _nameDraft:   string;
   _budgetDraft: string;
-  _saveState:   SaveState;
+  _saveState:   'idle' | 'saving' | 'saved' | 'error';
   _saveError:   string | null;
   _confirmDel:  boolean;
 }
@@ -648,91 +628,93 @@ function toDraft(c: CategoryRow): CategoryRowDraft {
 }
 
 function CategoryManager() {
-  const [catTab, setCatTab]     = useState<'pacing' | 'budgets'>('pacing');
-  const [rows, setRows]         = useState<CategoryRowDraft[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [loadErr, setLoadErr]   = useState<string | null>(null);
-  const [adding, setAdding]     = useState(false);
-  const [newName, setNewName]   = useState('');
-  const [addErr, setAddErr]     = useState<string | null>(null);
+  const qc = useQueryClient();
+  const [catTab, setCatTab] = useState<'pacing' | 'budgets'>('pacing');
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
 
-  const loadCategories = useCallback(async () => {
-    setLoading(true); setLoadErr(null);
-    try {
-      const res = await fetch(`${API}/api/categories`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json() as CategoryRow[];
-      setRows(data.map(toDraft));
-    } catch (e) {
-      setLoadErr((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: rawRows = [], isLoading: loading, error: loadErr } =
+    useQuery<CategoryRow[]>({
+      queryKey: ['categories'],
+      queryFn:  () =>
+        fetch(`${API}/api/categories`)
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    });
 
-  useEffect(() => { loadCategories(); }, [loadCategories]);
+  // Local draft state layered on top of server data
+  const [draftOverrides, setDraftOverrides] = useState<Map<number, Partial<CategoryRowDraft>>>(new Map());
 
-  const updateRow = (idx: number, patch: Partial<CategoryRowDraft>) =>
-    setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
+  // Merge server rows with local draft overrides
+  const rows: CategoryRowDraft[] = rawRows.map(r => {
+    const base = toDraft(r);
+    const override = draftOverrides.get(r.id);
+    return override ? { ...base, ...override } : base;
+  });
 
-  const handleSave = async (idx: number) => {
-    const row = rows[idx];
-    updateRow(idx, { _saveState: 'saving', _saveError: null });
-    try {
-      const body: Record<string, unknown> = {};
-      if (row._nameDraft.trim() !== row.name) body.name = row._nameDraft.trim();
-      const bval = parseFloat(row._budgetDraft);
-      if (!isNaN(bval) && bval !== row.monthly_budget) body.monthly_budget = bval;
+  const updateRow = (id: number, patch: Partial<CategoryRowDraft>) =>
+    setDraftOverrides(prev => {
+      const next = new Map(prev);
+      next.set(id, { ...(next.get(id) ?? {}), ...patch });
+      return next;
+    });
 
-      const res = await fetch(`${API}/api/categories/${row.id}`, {
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Partial<CategoryRow> }) =>
+      fetch(`${API}/api/categories/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { detail?: string };
-        throw new Error(err.detail ?? `HTTP ${res.status}`);
-      }
-      const updated = await res.json() as CategoryRow;
-      updateRow(idx, { ...toDraft(updated), _saveState: 'saved' });
-    } catch (e) {
-      updateRow(idx, { _saveState: 'error', _saveError: (e as Error).message });
-    }
-  };
+      }).then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error((e as { detail?: string }).detail ?? `HTTP ${r.status}`)));
+        return r.json();
+      }),
+    onSuccess: (_data, { id }) => {
+      // Clear draft overrides for this row and refetch
+      setDraftOverrides(prev => { const next = new Map(prev); next.delete(id); return next; });
+      qc.invalidateQueries({ queryKey: ['categories'] });
+    },
+    onError: (err, { id }) => {
+      updateRow(id, { _saveState: 'error', _saveError: (err as Error).message });
+    },
+  });
 
-  const handleDelete = async (idx: number) => {
-    const row = rows[idx];
-    try {
-      const res = await fetch(`${API}/api/categories/${row.id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { detail?: string };
-        throw new Error(err.detail ?? `HTTP ${res.status}`);
-      }
-      await loadCategories();
-    } catch (e) {
-      updateRow(idx, { _saveState: 'error', _saveError: (e as Error).message, _confirmDel: false });
-    }
-  };
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`${API}/api/categories/${id}`, { method: 'DELETE' })
+        .then(r => {
+          if (!r.ok) return r.json().then(e => Promise.reject(new Error((e as { detail?: string }).detail ?? `HTTP ${r.status}`)));
+          return r.json();
+        }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+    onError: (err, id) => {
+      updateRow(id, { _saveState: 'error', _saveError: (err as Error).message, _confirmDel: false });
+    },
+  });
 
-  const handleAdd = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    setAddErr(null);
-    try {
-      const res = await fetch(`${API}/api/categories`, {
+  const addMutation = useMutation({
+    mutationFn: (name: string) =>
+      fetch(`${API}/api/categories`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, monthly_budget: 0 }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { detail?: string };
-        throw new Error(err.detail ?? `HTTP ${res.status}`);
-      }
-      setNewName(''); setAdding(false);
-      await loadCategories();
-    } catch (e) {
-      setAddErr((e as Error).message);
-    }
+      }).then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error((e as { detail?: string }).detail ?? `HTTP ${r.status}`)));
+        return r.json();
+      }),
+    onSuccess: () => {
+      setNewName('');
+      setAdding(false);
+      qc.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+
+  const handleSave = (row: CategoryRowDraft) => {
+    const body: Partial<CategoryRow> = {};
+    if (row._nameDraft.trim() !== row.name) body.name = row._nameDraft.trim();
+    const bval = parseFloat(row._budgetDraft);
+    if (!isNaN(bval) && bval !== row.monthly_budget) body.monthly_budget = bval;
+    updateRow(row.id, { _saveState: 'saving', _saveError: null });
+    updateMutation.mutate({ id: row.id, body });
   };
 
   const inputStyle: React.CSSProperties = {
@@ -791,8 +773,8 @@ function CategoryManager() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18 }}
           >
-            {loading && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading categories…</p>}
-            {loadErr  && <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load categories: {loadErr}</p>}
+            {loading  && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading categories…</p>}
+            {loadErr  && <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load categories: {(loadErr as Error).message}</p>}
 
             {!loading && !loadErr && (
               <>
@@ -804,13 +786,13 @@ function CategoryManager() {
                 </div>
 
                 <div style={{ border: '1px solid var(--border-subtle)', borderTop: 'none', borderRadius: '0 0 0.625rem 0.625rem', overflow: 'hidden', marginBottom: '0.75rem' }}>
-                  {rows.map((row, idx) => (
+                  {rows.map((row) => (
                     <div key={row.id} style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: COL, gap: '0.5rem', alignItems: 'center', padding: '0.5rem 0.875rem' }}>
                         <input
                           style={inputStyle}
                           value={row._nameDraft}
-                          onChange={e => updateRow(idx, { _nameDraft: e.target.value, _saveState: 'idle', _saveError: null })}
+                          onChange={e => updateRow(row.id, { _nameDraft: e.target.value, _saveState: 'idle', _saveError: null })}
                         />
 
                         <div style={{ position: 'relative' }}>
@@ -819,13 +801,13 @@ function CategoryManager() {
                             style={{ ...inputStyle, paddingLeft: '1.375rem' }}
                             type="number" min={0} step={10}
                             value={row._budgetDraft}
-                            onChange={e => updateRow(idx, { _budgetDraft: e.target.value, _saveState: 'idle', _saveError: null })}
+                            onChange={e => updateRow(row.id, { _budgetDraft: e.target.value, _saveState: 'idle', _saveError: null })}
                           />
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <button
-                            onClick={() => handleSave(idx)}
+                            onClick={() => handleSave(row)}
                             disabled={row._saveState === 'saving'}
                             style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: 'none', background: row._saveState === 'saving' ? 'var(--border-subtle)' : 'var(--accent-blue)', color: row._saveState === 'saving' ? 'var(--text-muted)' : '#fff', fontSize: '0.8125rem', fontWeight: 600, cursor: row._saveState === 'saving' ? 'not-allowed' : 'pointer' }}
                           >
@@ -833,7 +815,7 @@ function CategoryManager() {
                           </button>
                           {!row._confirmDel ? (
                             <button
-                              onClick={() => updateRow(idx, { _confirmDel: true })}
+                              onClick={() => updateRow(row.id, { _confirmDel: true })}
                               style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--accent-red)', fontSize: '0.8125rem', cursor: 'pointer' }}
                             >
                               Delete
@@ -841,8 +823,8 @@ function CategoryManager() {
                           ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                               <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>→ Uncategorized?</span>
-                              <button onClick={() => handleDelete(idx)} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: 'none', background: 'var(--accent-red)', color: '#fff', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Yes</button>
-                              <button onClick={() => updateRow(idx, { _confirmDel: false })} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer' }}>No</button>
+                              <button onClick={() => deleteMutation.mutate(row.id)} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: 'none', background: 'var(--accent-red)', color: '#fff', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Yes</button>
+                              <button onClick={() => updateRow(row.id, { _confirmDel: false })} style={{ padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer' }}>No</button>
                             </div>
                           )}
                           {row._saveState === 'saved' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-green)' }}>✓</span>}
@@ -864,12 +846,12 @@ function CategoryManager() {
                         placeholder="New category name…"
                         value={newName}
                         onChange={e => setNewName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') { setAdding(false); setNewName(''); setAddErr(null); } }}
+                        onKeyDown={e => { if (e.key === 'Enter') addMutation.mutate(newName.trim()); if (e.key === 'Escape') { setAdding(false); setNewName(''); } }}
                         style={{ ...inputStyle, width: 240 }}
                       />
-                      <button onClick={handleAdd} style={{ padding: '0.375rem 0.875rem', borderRadius: '0.375rem', border: 'none', background: 'var(--accent-blue)', color: '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}>Add</button>
-                      <button onClick={() => { setAdding(false); setNewName(''); setAddErr(null); }} style={{ padding: '0.375rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.875rem', cursor: 'pointer' }}>Cancel</button>
-                      {addErr && <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }}>{addErr}</span>}
+                      <button onClick={() => addMutation.mutate(newName.trim())} disabled={addMutation.isPending} style={{ padding: '0.375rem 0.875rem', borderRadius: '0.375rem', border: 'none', background: 'var(--accent-blue)', color: '#fff', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                      <button onClick={() => { setAdding(false); setNewName(''); }} style={{ padding: '0.375rem 0.625rem', borderRadius: '0.375rem', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.875rem', cursor: 'pointer' }}>Cancel</button>
+                      {addMutation.isError && <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }}>{(addMutation.error as Error).message}</span>}
                     </div>
                   ) : (
                     <div style={{ padding: '0.5rem 0.875rem', background: 'var(--bg-surface)' }}>
@@ -900,24 +882,13 @@ function CategoryManager() {
 // ---------------------------------------------------------------------------
 
 export function BudgetTab() {
-  const [targets, setTargets] = useState<RoutingTarget[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadErr, setLoadErr] = useState<string | null>(null);
-
-  const loadTargets = useCallback(async () => {
-    setLoading(true); setLoadErr(null);
-    try {
-      const res = await fetch(`${API}/api/routing`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setTargets(await res.json() as RoutingTarget[]);
-    } catch (e) {
-      setLoadErr((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadTargets(); }, [loadTargets]);
+  const { data: targets = [], isLoading: loading, error: loadErr } =
+    useQuery<RoutingTarget[]>({
+      queryKey: ['routing'],
+      queryFn:  () =>
+        fetch(`${API}/api/routing`)
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    });
 
   const sectionHeader: React.CSSProperties = {
     fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)',
@@ -939,7 +910,7 @@ export function BudgetTab() {
       {/* ── Section A: Paycheck Router ── */}
       <h2 style={sectionHeader}>Paycheck Router</h2>
       {loading  && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading routing targets…</p>}
-      {loadErr  && <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load targets: {loadErr}</p>}
+      {loadErr  && <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load targets: {loadErr?.message}</p>}
       {!loading && !loadErr && <PaycheckRouter targets={targets} />}
 
       {divider}
@@ -950,7 +921,7 @@ export function BudgetTab() {
         Edit bucket names, categories, priority order, and monthly amounts. Priority 1 is funded first.
         Targets sharing the same priority receive proportional allocations on a shortfall.
       </p>
-      {!loading && !loadErr && <RoutingEditor targets={targets} onSaved={loadTargets} />}
+      {!loading && !loadErr && <RoutingEditor targets={targets} />}
 
       {divider}
 
