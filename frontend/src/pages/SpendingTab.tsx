@@ -30,7 +30,8 @@ function SpendingTab({ data, activePeriod, onDrillDown }: SpendingTabProps) {
           <CategoryBar labels={period.cat_labels} values={period.cat_values} onDrillDown={onDrillDown} />
         </CollapsibleCard>
         <CollapsibleCard title="Income Sources">
-          <CategoryBar labels={period.src_labels} values={period.src_values} onDrillDown={onDrillDown} />
+          {/* Income source labels are employer names, not transaction categories — no drill-down */}
+          <CategoryBar labels={period.src_labels} values={period.src_values} />
         </CollapsibleCard>
       </div>
     </div>

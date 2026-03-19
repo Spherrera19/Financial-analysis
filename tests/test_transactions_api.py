@@ -94,14 +94,17 @@ def test_category_filter(client):
 
 
 def test_period_filter_bounds_to_month(client):
-    """Passing period restricts rows to months returned by get_period_months()."""
-    # We can't easily mock the period, but we can test that ?period=current
-    # returns zero rows (our seeded data is in 2030-01, which will never be "current").
+    """?period=current excludes rows outside the current month.
+
+    All seeded rows are dated 2030-01 or 2029-12 — neither will ever be
+    the "current" month, so the filter must return an empty list.
+    If it returned all rows, this test would catch the regression.
+    """
     r = client.get("/api/transactions", params={"period": "current"})
     assert r.status_code == 200
-    # Seeded dates are in the future — current month won't match
     rows = r.json()
-    assert isinstance(rows, list)
+    # Seeded dates are in 2030 / 2029 — current month filter must exclude all of them
+    assert len(rows) == 0
 
 
 def test_combined_type_and_category(client):
