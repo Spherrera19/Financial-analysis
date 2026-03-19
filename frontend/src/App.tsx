@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { DashboardPayload, PeriodKey, TabKey } from './types';
+import type { DashboardPayload, PeriodKey, TabKey, DrawerFilter } from './types';
 import type { Theme } from './lib/theme';
 import { applyTheme, loadTheme } from './lib/theme';
 import { Sidebar, TopBar } from './components/layout';
+import { TransactionDrawer } from './components/modals';
 import {
   OverviewTab,
   CashFlowTab,
@@ -65,6 +66,14 @@ export default function App() {
   const [activePeriod, setActivePeriod] = useState<PeriodKey>('last');
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
+  // ── Drill-down drawer — declared unconditionally so BudgetTab (pre-guard) gets it safely ──
+  const [drawerFilter, setDrawerFilter] = useState<DrawerFilter | null>(null)
+  const openDrawer  = useCallback(
+    (f: Omit<DrawerFilter, 'period'>) => setDrawerFilter({ ...f, period: activePeriod }),
+    [activePeriod],
+  )
+  const closeDrawer = useCallback(() => setDrawerFilter(null), [])
+
   // ── Theme state ──
   const [activeTheme, setActiveTheme] = useState<Theme>(loadTheme);
 
@@ -109,9 +118,9 @@ export default function App() {
   const renderTab = () => {
     if (!data) return null;
     switch (activeTab) {
-      case 'overview':     return <OverviewTab     data={data} activePeriod={activePeriod} />;
+      case 'overview':     return <OverviewTab     data={data} activePeriod={activePeriod} onDrillDown={openDrawer} />;
       case 'cashflow':     return <CashFlowTab     data={data} activePeriod={activePeriod} />;
-      case 'spending':     return <SpendingTab     data={data} activePeriod={activePeriod} />;
+      case 'spending':     return <SpendingTab     data={data} activePeriod={activePeriod} onDrillDown={openDrawer} />;
       case 'debt':         return <DebtTab         data={data} />;
       case 'transactions': return <TransactionsTab data={data} activePeriod={activePeriod} />;
       case 'equity':       return null; // handled in pre-guard chain
@@ -150,7 +159,7 @@ export default function App() {
           </div>
         ) : activeTab === 'budget' ? (
           <div style={{ padding: '1.5rem' }}>
-            <BudgetTab />
+            <BudgetTab onDrillDown={openDrawer} />
           </div>
         ) : (
           <>
@@ -183,6 +192,13 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* Drill-down drawer — rendered at root so any chart on any tab can trigger it */}
+      <AnimatePresence>
+        {drawerFilter && (
+          <TransactionDrawer filter={drawerFilter} onClose={closeDrawer} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

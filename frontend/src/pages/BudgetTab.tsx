@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Chart from 'chart.js/auto';
+import type { DrawerFilter } from '../types';
 
 // ---------------------------------------------------------------------------
 // Constants & types
@@ -155,7 +156,13 @@ const listRow = {
 // Section A — Paycheck Router
 // ---------------------------------------------------------------------------
 
-function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
+function PaycheckRouter({
+  targets,
+  onDrillDown,
+}: {
+  targets:     RoutingTarget[]
+  onDrillDown: (f: Omit<DrawerFilter, 'period'>) => void
+}) {
   const [amount, setAmount]       = useState('');
   const [halfMonth, setHalfMonth] = useState(false);
   const chartRef  = useRef<HTMLCanvasElement>(null);
@@ -207,11 +214,31 @@ function PaycheckRouter({ targets }: { targets: RoutingTarget[] }) {
             },
           },
         },
+        onClick: (_event: unknown, elements: { index: number }[]) => {
+          if (!elements.length) return
+          const idx = elements[0].index
+          if (idx < allocations.length) {
+            const allocation = allocations[idx]
+            // Guard: skip if routing target has no category mapped (empty string default)
+            if (!allocation.target.category) return
+            onDrillDown({
+              category: allocation.target.category,
+              label:    allocation.target.name,
+            })
+          }
+          // "Debt / Overflow" slice is at index allocations.length — intentionally no drill-down
+        },
+        onHover: (_event: unknown, elements: unknown[]) => {
+          if (chartInst.current) {
+            (chartInst.current.canvas as HTMLCanvasElement).style.cursor =
+              elements.length ? 'pointer' : 'default'
+          }
+        },
       },
     });
 
     return () => { chartInst.current?.destroy(); chartInst.current = null; };
-  }, [hasAmount, allocations, overflow, paycheck, badge.color]);
+  }, [hasAmount, allocations, overflow, paycheck, badge.color, onDrillDown]);
 
   const inputStyle: React.CSSProperties = {
     padding: '0.625rem 0.875rem',
@@ -881,7 +908,11 @@ function CategoryManager() {
 // BudgetTab — main export
 // ---------------------------------------------------------------------------
 
-export function BudgetTab() {
+interface BudgetTabProps {
+  onDrillDown: (f: Omit<DrawerFilter, 'period'>) => void
+}
+
+export function BudgetTab({ onDrillDown }: BudgetTabProps) {
   const { data: targets = [], isLoading: loading, error: loadErr } =
     useQuery<RoutingTarget[]>({
       queryKey: ['routing'],
@@ -911,7 +942,7 @@ export function BudgetTab() {
       <h2 style={sectionHeader}>Paycheck Router</h2>
       {loading  && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading routing targets…</p>}
       {loadErr  && <p style={{ fontSize: '0.875rem', color: 'var(--accent-red)' }}>Could not load targets: {loadErr?.message}</p>}
-      {!loading && !loadErr && <PaycheckRouter targets={targets} />}
+      {!loading && !loadErr && <PaycheckRouter targets={targets} onDrillDown={onDrillDown} />}
 
       {divider}
 

@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
 import { KpiCard, CollapsibleCard } from '../components/cards';
 import { SankeyChart, DiscretionaryBar } from '../components/charts';
 import { AccountList } from '../components/tables';
-import type { DashboardPayload, PeriodKey } from '../types';
+import type { DashboardPayload, DrawerFilter, EquitySection, PeriodKey } from '../types';
+
+const API = 'http://localhost:8000';
 
 function fmt(n: number): string {
   const abs = Math.abs(n);
@@ -10,32 +13,53 @@ function fmt(n: number): string {
 }
 
 interface OverviewTabProps {
-  data: DashboardPayload;
+  data:         DashboardPayload;
   activePeriod: PeriodKey;
+  onDrillDown:  (f: Omit<DrawerFilter, 'period'>) => void;
 }
 
-function OverviewTab({ data, activePeriod }: OverviewTabProps) {
+function OverviewTab({ data, activePeriod, onDrillDown }: OverviewTabProps) {
   const period = data.periods[activePeriod];
+
+  // Equity data — fetched in the background; tab works fine if unavailable
+  const [equity, setEquity] = useState<EquitySection | null>(null);
+  useEffect(() => {
+    fetch(`${API}/api/equity`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: EquitySection | null) => setEquity(d))
+      .catch(() => setEquity(null));
+  }, []);
+
+  const unvestedValue  = equity?.total_unvested_value ?? 0;
+  const totalWealth    = data.summary.net_worth + unvestedValue;
+  const hasEquity      = unvestedValue > 0;
 
   return (
     <div style={{ padding: '1.5rem' }}>
       {/* Discretionary Waterfall — most critical metric, shown first */}
       <div style={{ marginBottom: '1.25rem' }}>
         <CollapsibleCard title="Discretionary Income Breakdown">
-          <DiscretionaryBar waterfall={period.cash_flow_waterfall} />
+          <DiscretionaryBar waterfall={period.cash_flow_waterfall} onDrillDown={onDrillDown} />
         </CollapsibleCard>
       </div>
 
-      {/* KPI Row */}
+      {/* KPI Row — 5 cards when equity data is available, 4 otherwise */}
       <div
         className="grid-kpi"
-        style={{ display: 'grid', gap: '1rem', marginBottom: '1rem' }}
+        style={{
+          display: 'grid',
+          gap: '1rem',
+          marginBottom: '1rem',
+          gridTemplateColumns: hasEquity
+            ? 'repeat(5, minmax(0, 1fr))'
+            : 'repeat(4, minmax(0, 1fr))',
+        }}
       >
         <KpiCard
           label="Net Worth"
           value={fmt(data.summary.net_worth)}
           variant={data.summary.net_worth >= 0 ? 'positive' : 'negative'}
-          subtitle="Assets − Liabilities"
+          subtitle={hasEquity ? `Total Wealth w/ Equity: ${fmt(totalWealth)}` : 'Assets − Liabilities'}
         />
         <KpiCard
           label="Total Assets"
@@ -55,6 +79,14 @@ function OverviewTab({ data, activePeriod }: OverviewTabProps) {
           variant={period.kpi_net >= 0 ? 'positive' : 'negative'}
           subtitle={`In ${fmt(period.kpi_income)} · Out ${fmt(period.kpi_spending)}`}
         />
+        {hasEquity && (
+          <KpiCard
+            label="Unvested Equity"
+            value={fmt(unvestedValue)}
+            variant="positive"
+            subtitle="at current price · net of 30% tax"
+          />
+        )}
       </div>
 
       {/* Sankey Chart */}

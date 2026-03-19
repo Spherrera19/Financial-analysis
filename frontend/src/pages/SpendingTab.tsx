@@ -1,13 +1,14 @@
 import { CollapsibleCard } from '../components/cards';
 import { SpendingDonut, CategoryBar } from '../components/charts';
-import type { DashboardPayload, PeriodKey } from '../types';
+import type { DashboardPayload, DrawerFilter, PeriodKey } from '../types';
 
 interface SpendingTabProps {
-  data: DashboardPayload;
+  data:         DashboardPayload;
   activePeriod: PeriodKey;
+  onDrillDown:  (f: Omit<DrawerFilter, 'period'>) => void;
 }
 
-function SpendingTab({ data, activePeriod }: SpendingTabProps) {
+function SpendingTab({ data, activePeriod, onDrillDown }: SpendingTabProps) {
   const period = data.periods[activePeriod];
   const [nec, opt, debt, other] = period.nec_opt_donut;
 
@@ -16,7 +17,7 @@ function SpendingTab({ data, activePeriod }: SpendingTabProps) {
       {/* Full-width Donut */}
       <div style={{ marginBottom: '1rem' }}>
         <CollapsibleCard title="Necessity vs Optional Breakdown">
-          <SpendingDonut nec={nec} opt={opt} debt={debt} other={other} />
+          <SpendingDonut nec={nec} opt={opt} debt={debt} other={other} onDrillDown={onDrillDown} />
         </CollapsibleCard>
       </div>
 
@@ -26,10 +27,10 @@ function SpendingTab({ data, activePeriod }: SpendingTabProps) {
         style={{ display: 'grid', gap: '1rem' }}
       >
         <CollapsibleCard title="Top Spending Categories">
-          <CategoryBar labels={period.cat_labels} values={period.cat_values} />
+          <CategoryBar labels={period.cat_labels} values={period.cat_values} onDrillDown={onDrillDown} />
         </CollapsibleCard>
         <CollapsibleCard title="Income Sources">
-          <CategoryBar labels={period.src_labels} values={period.src_values} />
+          <CategoryBar labels={period.src_labels} values={period.src_values} onDrillDown={onDrillDown} />
         </CollapsibleCard>
       </div>
     </div>
