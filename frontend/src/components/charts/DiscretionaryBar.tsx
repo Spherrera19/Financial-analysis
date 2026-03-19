@@ -1,7 +1,8 @@
-import type { CashFlowWaterfall } from '../../types';
+import type { CashFlowWaterfall, DrawerFilter } from '../../types';
 
 interface DiscretionaryBarProps {
-  waterfall: CashFlowWaterfall;
+  waterfall:   CashFlowWaterfall;
+  onDrillDown: (f: Omit<DrawerFilter, 'period'>) => void;
 }
 
 function fmt(n: number): string {
@@ -16,7 +17,7 @@ function pct(n: number, total: number): string {
   return (n / total * 100).toFixed(1) + '%';
 }
 
-export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
+export function DiscretionaryBar({ waterfall, onDrillDown }: DiscretionaryBarProps) {
   const {
     total_income,
     necessary_spending,
@@ -81,6 +82,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
         {/* Necessary block */}
         <div
           title={`Necessary: ${fmt(necessary_spending)} (${pct(necessary_spending, total_income)} of income)\nIncludes rent, utilities, groceries, insurance, and minimum debt payments.`}
+          onClick={() => onDrillDown({ type: 'N', label: 'Necessities' })}
           style={{
             width: w(necessary_spending),
             backgroundColor: 'var(--color-text-muted)',
@@ -91,7 +93,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
             justifyContent: 'center',
             overflow: 'hidden',
             whiteSpace: 'nowrap',
-            cursor: 'help',
+            cursor: 'pointer',
           }}
         >
           <span
@@ -106,6 +108,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
         {optional_spending > 0 && (
           <div
             title={`Optional: ${fmt(optional_spending)} (${pct(optional_spending, total_income)} of income)\nOptional ${fmt(opt_subtotal)} + Other ${fmt(oth_subtotal)}`}
+            onClick={() => onDrillDown({ type: 'O', label: 'Optional' })}
             style={{
               width: w(isOverspent ? Math.min(optional_spending, true_discretionary_income) : optional_spending),
               backgroundColor: '#f59e0b',
@@ -115,7 +118,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
               justifyContent: 'center',
               overflow: 'hidden',
               whiteSpace: 'nowrap',
-              cursor: 'help',
+              cursor: 'pointer',
             }}
           >
             <span className="text-xs font-semibold px-1 text-white">
@@ -128,6 +131,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
         {extra_debt_payments > 0 && !isOverspent && (
           <div
             title={`Extra Debt Payments: ${fmt(extra_debt_payments)} (${pct(extra_debt_payments, total_income)} of income)\nDebt paid above minimum payments — accelerating payoff.`}
+            onClick={() => onDrillDown({ type: 'D', label: 'Debt Payments' })}
             style={{
               width: w(extra_debt_payments),
               backgroundColor: '#f43f5e',
@@ -137,7 +141,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
               justifyContent: 'center',
               overflow: 'hidden',
               whiteSpace: 'nowrap',
-              cursor: 'help',
+              cursor: 'pointer',
             }}
           >
             <span className="text-xs font-semibold px-1 text-white">
@@ -150,6 +154,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
         {isOverspent ? (
           <div
             title={`Overspent: optional + extra debt exceeds discretionary income by ${fmt(optional_spending + extra_debt_payments - true_discretionary_income)}.`}
+            onClick={() => onDrillDown({ type: 'O', label: 'Optional (over budget)' })}
             style={{
               flex: 1,
               backgroundColor: '#e11d48',
@@ -158,7 +163,7 @@ export function DiscretionaryBar({ waterfall }: DiscretionaryBarProps) {
               justifyContent: 'center',
               overflow: 'hidden',
               whiteSpace: 'nowrap',
-              cursor: 'help',
+              cursor: 'pointer',
               minWidth: 0,
             }}
           >
