@@ -17,15 +17,20 @@ interface SidebarProps {
   asOfDate?: string;
 }
 
-const NAV_ITEMS: { id: TabKey; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }> }[] = [
-  { id: 'overview',      label: 'Overview',      icon: LayoutDashboard },
-  { id: 'cashflow',      label: 'Cash Flow',      icon: TrendingUp },
-  { id: 'spending',      label: 'Spending',       icon: Wallet },
-  { id: 'debt',          label: 'Debt',           icon: CreditCard },
-  { id: 'transactions',  label: 'Transactions',   icon: Receipt },
-  { id: 'equity',        label: 'Equity',         icon: BarChart2 },
-  { id: 'budget',        label: 'Budget',         icon: Landmark },
-  { id: 'settings',      label: 'Settings',       icon: Settings },
+const NAV_ITEMS: {
+  id: TabKey;
+  label: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>;
+  section: string;
+}[] = [
+  { id: 'overview',      label: 'Overview',      icon: LayoutDashboard, section: 'Daily Ops' },
+  { id: 'cashflow',      label: 'Cash Flow',      icon: TrendingUp,      section: 'Daily Ops' },
+  { id: 'spending',      label: 'Spending',       icon: Wallet,          section: 'Daily Ops' },
+  { id: 'budget',        label: 'Budget',         icon: Landmark,        section: 'Daily Ops' },
+  { id: 'transactions',  label: 'Transactions',   icon: Receipt,         section: 'Daily Ops' },
+  { id: 'debt',          label: 'Debt',           icon: CreditCard,      section: 'Wealth Building' },
+  { id: 'equity',        label: 'Equity',         icon: BarChart2,       section: 'Wealth Building' },
+  { id: 'settings',      label: 'Settings',       icon: Settings,        section: 'System' },
 ];
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
@@ -84,70 +89,94 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
 
         {/* Nav items */}
         <nav style={{ flex: 1, padding: '0 8px' }}>
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-            const isActive = activeTab === id;
+          {(['Daily Ops', 'Wealth Building', 'System'] as const).map(section => {
+            const sectionItems = NAV_ITEMS.filter(item => item.section === section)
             return (
-              <button
-                key={id}
-                onClick={() => onTabChange(id)}
-                style={{
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  width: '100%',
-                  padding: '0.625rem 0.875rem',
-                  // paddingLeft centers the 18px icon in the 56px inner width (72 - 2×8px nav padding)
-                  paddingLeft: 19,
-                  borderRadius: '0.625rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  marginBottom: '0.25rem',
-                  fontSize: '0.9375rem',
-                  fontWeight: isActive ? 600 : 400,
-                  background: isActive
-                    ? 'color-mix(in srgb, var(--accent-blue) 15%, transparent)'
-                    : 'transparent',
-                  color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                  transition: 'background 0.15s ease, color 0.15s ease',
-                  outline: 'none',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textAlign: 'left',
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background =
-                    'color-mix(in srgb, var(--text-muted) 10%, transparent)';
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                }}
-              >
-                <AnimatePresence>
-                  {isActive && (
-                    <motion.span
-                      layoutId="activeNav"
+              <div key={section}>
+                {/* Section label — invisible when collapsed, fades in on rail hover */}
+                <div
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75"
+                  style={{
+                    padding: '1rem 1.25rem 0.25rem',
+                    fontSize: '0.6875rem',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase' as const,
+                    letterSpacing: '0.08em',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {section}
+                </div>
+
+                {/* Nav items in this section */}
+                {sectionItems.map(({ id, label, icon: Icon }) => {
+                  const isActive = activeTab === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => onTabChange(id)}
                       style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: 3,
-                        height: '60%',
-                        borderRadius: '0 3px 3px 0',
-                        background: 'var(--accent-blue)',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        width: '100%',
+                        padding: '0.625rem 0.875rem',
+                        // paddingLeft centers the 18px icon in the 56px inner width (72 - 2×8px nav padding)
+                        paddingLeft: 19,
+                        borderRadius: '0.625rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                        marginBottom: '0.25rem',
+                        fontSize: '0.9375rem',
+                        fontWeight: isActive ? 600 : 400,
+                        background: isActive
+                          ? 'color-mix(in srgb, var(--accent-blue) 15%, transparent)'
+                          : 'transparent',
+                        color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                        transition: 'background 0.15s ease, color 0.15s ease',
+                        outline: 'none',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textAlign: 'left',
                       }}
-                      transition={SPRING}
-                    />
-                  )}
-                </AnimatePresence>
-                <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} style={{ flexShrink: 0 }} />
-                {/* Label fades in on rail hover via Tailwind group-hover */}
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75">
-                  {label}
-                </span>
-              </button>
-            );
+                      onMouseEnter={e => {
+                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background =
+                          'color-mix(in srgb, var(--text-muted) 10%, transparent)';
+                      }}
+                      onMouseLeave={e => {
+                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                      }}
+                    >
+                      <AnimatePresence>
+                        {isActive && (
+                          <motion.span
+                            layoutId="activeNav"
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: 3,
+                              height: '60%',
+                              borderRadius: '0 3px 3px 0',
+                              background: 'var(--accent-blue)',
+                            }}
+                            transition={SPRING}
+                          />
+                        )}
+                      </AnimatePresence>
+                      <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} style={{ flexShrink: 0 }} />
+                      {/* Label fades in on rail hover via Tailwind group-hover */}
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75">
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )
           })}
         </nav>
 
