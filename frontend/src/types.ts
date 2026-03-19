@@ -129,3 +129,14 @@ export interface EquitySection {
 }
 
 export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions' | 'settings' | 'equity' | 'budget';
+
+// ── Drill-down drawer (Phase 5.5) ────────────────────────────────────────────
+// Placed here (not in a local component file) so App.tsx, tab components, and
+// chart components can all import it from the same source without a second import path.
+
+export interface DrawerFilter {
+  category?: string;    // e.g. "Groceries" — exact match on transactions.category
+  period?:   PeriodKey; // e.g. "current" — maps to date range via backend get_period_months()
+  type?:     string;    // e.g. "O" — transaction type code (N, O, D, I, T, X)
+  label?:    string;    // display-only: shown in the drawer header, never sent to the API
+}
