@@ -201,6 +201,41 @@ class CategoryUpdate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Retirement accounts  (Phase 6)
+# ---------------------------------------------------------------------------
+
+class RetirementAccount(BaseModel):
+    id:                    int
+    account_name:          str
+    account_type:          str
+    owner:                 str
+    annual_limit:          float
+    ytd_contributions:     float
+    employer_match_amount: float | None = None
+    employer_match_target: float | None = None
+
+
+class RetirementCreate(BaseModel):
+    account_name:          str
+    account_type:          str
+    owner:                 str
+    annual_limit:          float
+    ytd_contributions:     float = 0.0
+    employer_match_amount: float | None = None
+    employer_match_target: float | None = None
+
+
+class RetirementUpdate(BaseModel):
+    account_name:          str   | None = None
+    account_type:          str   | None = None
+    owner:                 str   | None = None
+    annual_limit:          float | None = None
+    ytd_contributions:     float | None = None
+    employer_match_amount: float | None = None
+    employer_match_target: float | None = None
+
+
+# ---------------------------------------------------------------------------
 # Transaction  (compact field names match the TS interface exactly)
 # ---------------------------------------------------------------------------
 
