@@ -4,8 +4,9 @@ These are the strict serialization layer between Python processing and data.json
 """
 from __future__ import annotations
 
-from typing import Literal, Tuple
+from typing import Literal, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field
+from sqlmodel import SQLModel as _SQLModel, Field as _Field
 
 
 # ---------------------------------------------------------------------------
@@ -172,12 +173,13 @@ class EquitySection(BaseModel):
 # Budget & Routing  (Phase 4.5)
 # ---------------------------------------------------------------------------
 
-class RoutingTarget(BaseModel):
-    id:             int | None = None   # None for new rows not yet in the DB
-    name:           str
-    monthly_amount: float
-    category:       str
-    priority:       int
+class RoutingTarget(_SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "routing_targets"
+    id:             Optional[int] = _Field(default=None, primary_key=True)
+    name:           str           = ""
+    monthly_amount: float         = 0.0
+    category:       str           = _Field(default="")
+    priority:       int           = _Field(default=99)
 
 
 class RoutingUpdate(BaseModel):
@@ -204,15 +206,16 @@ class CategoryUpdate(BaseModel):
 # Retirement accounts  (Phase 6)
 # ---------------------------------------------------------------------------
 
-class RetirementAccount(BaseModel):
-    id:                    int
-    account_name:          str
-    account_type:          str
-    owner:                 str
-    annual_limit:          float
-    ytd_contributions:     float
-    employer_match_amount: float | None = None
-    employer_match_target: float | None = None
+class RetirementAccount(_SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "retirement_accounts"
+    id:                    Optional[int]   = _Field(default=None, primary_key=True)
+    account_name:          str             = ""
+    account_type:          str             = ""
+    owner:                 str             = ""
+    annual_limit:          float           = 0.0
+    ytd_contributions:     float           = _Field(default=0.0)
+    employer_match_amount: Optional[float] = None
+    employer_match_target: Optional[float] = None
 
 
 class RetirementCreate(BaseModel):
@@ -270,3 +273,56 @@ class DashboardPayload(BaseModel):
     def to_json(self, **kwargs) -> str:
         """Serialise to JSON, using aliases (so SankeyFlow emits 'from' not 'from_')."""
         return self.model_dump_json(by_alias=True, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# SQLModel ORM table classes — additive (no existing Pydantic model displaced)
+# ---------------------------------------------------------------------------
+
+class Category(_SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "categories"
+    id:             Optional[int] = _Field(default=None, primary_key=True)
+    name:           str           = _Field(default="", unique=True)
+    monthly_budget: float         = _Field(default=0.0)
+
+
+class AccountHistoryRecord(_SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "accounts_history"
+    id:      Optional[int] = _Field(default=None, primary_key=True)
+    name:    str            = ""
+    balance: float          = 0.0
+    date:    str            = ""
+    type:    str            = ""   # 'asset' | 'liability'
+
+
+class AccountTermRecord(_SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "account_terms"
+    account_name: str           = _Field(primary_key=True)
+    apr:          float         = 0.0
+    min_payment:  float         = 0.0
+    display_name: Optional[str] = None
+
+
+class TransactionRecord(_SQLModel, table=True):  # type: ignore[call-arg]
+    """DB-layer model with full column names. Separate from the compact Transaction API model."""
+    __tablename__ = "transactions"
+    id:          Optional[int] = _Field(default=None, primary_key=True)
+    date:        str           = ""
+    merchant:    str           = ""
+    category:    str           = ""
+    account:     str           = ""
+    amount:      float         = 0.0
+    owner:       str           = ""
+    type:        str           = ""   # 'I'|'N'|'O'|'D'|'X'|'T'
+    is_checking: int           = _Field(default=0)
+
+
+class EquityGrantRecord(_SQLModel, table=True):  # type: ignore[call-arg]
+    """DB-layer model. vesting_schedule stored as JSON string (see EquityGrant for typed API model)."""
+    __tablename__ = "equity_grants"
+    id:               Optional[int] = _Field(default=None, primary_key=True)
+    ticker:           str           = ""
+    grant_date:       str           = ""
+    total_shares:     float         = 0.0
+    vesting_schedule: str           = ""   # JSON: [{"date": "YYYY-MM-DD", "shares": 50.0}, ...]
+    source:           str           = _Field(default="manual")
