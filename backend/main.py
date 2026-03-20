@@ -21,7 +21,7 @@ from backend.logger import get_logger
 
 log = get_logger("api")
 
-from backend.routers import dashboard, budget, equity, debt, settings as settings_router, transactions
+from backend.routers import dashboard, budget, equity, debt, settings as settings_router, transactions, retirement
 
 
 app = FastAPI(title="Finance Dashboard API")
@@ -91,3 +91,4 @@ app.include_router(equity.router)
 app.include_router(debt.router)
 app.include_router(settings_router.router)
 app.include_router(transactions.router)
+app.include_router(retirement.router)
