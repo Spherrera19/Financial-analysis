@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, Response
 
 from backend.deps import get_db
-from backend.models import RetirementAccount, RetirementCreate, RetirementUpdate
+from backend.models import RetirementCreate, RetirementUpdate
 
 router = APIRouter()
 
@@ -76,6 +76,13 @@ def update_retirement_account(
     if not updates:
         raise HTTPException(status_code=400, detail="No fields provided to update.")
 
+    # Check existence before writing (consistent with DELETE pattern)
+    row = conn.execute(
+        "SELECT * FROM retirement_accounts WHERE id = ?", (account_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Account not found.")
+
     set_clause = ", ".join(f"{col} = ?" for col in updates)
     values = list(updates.values()) + [account_id]
     conn.execute(
@@ -83,12 +90,11 @@ def update_retirement_account(
     )
     conn.commit()
 
-    row = conn.execute(
+    # Re-fetch to return the updated row
+    updated = conn.execute(
         "SELECT * FROM retirement_accounts WHERE id = ?", (account_id,)
     ).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Account not found.")
-    return JSONResponse(content=_row_to_account(row))
+    return JSONResponse(content=_row_to_account(updated))
 
 
 @router.delete("/api/retirement/{account_id}", status_code=204)

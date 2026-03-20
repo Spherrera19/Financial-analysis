@@ -156,6 +156,13 @@ def test_put_returns_404_for_missing_id(client):
     assert r.status_code == 404
 
 
+def test_put_empty_body_returns_400(client):
+    """PUT with an empty body returns 400."""
+    acct_id = _seed_account(client)
+    r = client.put(f"/api/retirement/{acct_id}", json={})
+    assert r.status_code == 400
+
+
 # ── DELETE ────────────────────────────────────────────────────────────────────
 
 def test_delete_removes_account(client):
