@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import type { RetirementAccount, RetirementCreate, RetirementUpdate } from '../../types';
 
@@ -56,7 +56,7 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
 
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const set = (field: string, value: string) =>
+  const set = (field: keyof typeof form, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
   const parseOpt = (s: string): number | null =>
@@ -115,7 +115,7 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <AnimatePresence>
+    <>
       {/* Backdrop */}
       <motion.div
         key="backdrop"
@@ -283,6 +283,6 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
           </div>
         )}
       </motion.div>
-    </AnimatePresence>
+    </>
   );
 }

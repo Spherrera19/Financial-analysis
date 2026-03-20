@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import type { RetirementAccount } from '../types';
 import { RetirementCard } from '../components/cards/RetirementCard';
 import { RetirementModal } from '../components/modals/RetirementModal';
 
 const API = 'http://localhost:8000';
+const MARGINAL_RATE = 0.24; // Federal marginal tax rate assumption for tax shield estimate
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -28,7 +30,7 @@ export default function TaxRetirementTab() {
 
   // KPI calculations
   const totalContributions = accounts.reduce((s, a) => s + a.ytd_contributions, 0);
-  const totalShield        = totalContributions * 0.24;
+  const totalShield        = totalContributions * MARGINAL_RATE;
   const matchCount         = accounts.filter(
     a => a.employer_match_target !== null && a.ytd_contributions >= a.employer_match_target!
   ).length;
@@ -170,13 +172,15 @@ export default function TaxRetirementTab() {
       )}
 
       {/* ── Modal ──────────────────────────────────────────────────────── */}
-      {modalAccount !== null && (
-        <RetirementModal
-          account={modalAccount === 'new' ? null : modalAccount}
-          onClose={() => setModalAccount(null)}
-          onSaved={() => { refetch(); setModalAccount(null); }}
-        />
-      )}
+      <AnimatePresence>
+        {modalAccount !== null && (
+          <RetirementModal
+            account={modalAccount === 'new' ? null : modalAccount}
+            onClose={() => setModalAccount(null)}
+            onSaved={() => refetch()}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
