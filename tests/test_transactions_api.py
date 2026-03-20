@@ -2,56 +2,54 @@
 Tests for GET /api/transactions — the filterable transaction drill-down endpoint.
 Uses FastAPI TestClient with an in-memory SQLite database seeded with known rows.
 """
-import sqlite3
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session, SQLModel, create_engine
+from sqlalchemy import text
+from sqlalchemy.pool import StaticPool
+import backend.models  # noqa: F401
 
-from backend.database import init_db
 from backend.main import app
 from backend.deps import get_db
 
 
 # ── Test fixture: in-memory DB with four known transactions ─────────────────
 
-def _seed_db(conn: sqlite3.Connection) -> None:
-    """Insert four transactions covering all four type codes used in tests."""
-    conn.executemany(
-        """
+def _seed_db(session: Session) -> None:
+    """Insert four transactions covering all type codes used in tests."""
+    session.execute(text("""
         INSERT INTO transactions
             (date, merchant, category, account, amount, owner, type, is_checking)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            # Necessary, current month  (use 2030-01 so tests never collide with real data)
-            ("2030-01-10", "Grocery Co",  "Groceries", "Checking", -120.00, "owner", "N", 1),
-            # Optional, current month
-            ("2030-01-15", "Coffee Shop", "Dining",    "Visa",     -18.50,  "owner", "O", 0),
-            # Debt, current month
-            ("2030-01-20", "Chase Card",  "Debt",      "Checking", -200.00, "owner", "D", 1),
-            # Necessary, different month (2029-12)
-            ("2029-12-05", "Old Grocer",  "Groceries", "Checking", -95.00,  "owner", "N", 1),
-        ],
-    )
-    conn.commit()
+        VALUES
+            ('2030-01-10', 'Grocery Co',  'Groceries', 'Checking', -120.00, 'owner', 'N', 1),
+            ('2030-01-15', 'Coffee Shop', 'Dining',    'Visa',      -18.50, 'owner', 'O', 0),
+            ('2030-01-20', 'Chase Card',  'Debt',      'Checking', -200.00, 'owner', 'D', 1),
+            ('2029-12-05', 'Old Grocer',  'Groceries', 'Checking',  -95.00, 'owner', 'N', 1)
+    """))
+    session.commit()
 
 
 @pytest.fixture()
 def client():
-    """TestClient that overrides get_db with an isolated in-memory database."""
-    conn = init_db(":memory:")
-    _seed_db(conn)
+    """TestClient that overrides get_db with an isolated in-memory SQLModel database."""
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(test_engine)
 
-    def override_get_db():
-        try:
-            yield conn
-        finally:
-            pass  # keep alive for the duration of the test
+    with Session(test_engine) as seed_session:
+        _seed_db(seed_session)
 
-    app.dependency_overrides[get_db] = override_get_db
+    def override():
+        with Session(test_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
-    conn.close()
 
 
 # ── Tests ───────────────────────────────────────────────────────────────────
