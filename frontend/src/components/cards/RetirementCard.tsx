@@ -51,49 +51,27 @@ export function RetirementCard({ account, onEdit }: RetirementCardProps) {
   const barColor = isOnPace ? '#22c55e' : '#f59e0b';
 
   return (
-    <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border-subtle)',
-      borderRadius: '0.875rem',
-      padding: '1.25rem',
-      marginBottom: '1rem',
-    }}>
+    <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[0.875rem] p-5 mb-4">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+      <div className="flex justify-between items-start mb-3">
         <div>
-          <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
+          <div className="font-bold text-base text-[var(--text-primary)]">
             {account.account_name}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+          <div className="text-xs text-[var(--text-muted)] mt-[0.15rem]">
             {account.account_type}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="flex items-center gap-2">
           {matchSecured && (
-            <span style={{
-              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-              color: '#fff',
-              fontSize: '0.6875rem',
-              fontWeight: 700,
-              padding: '0.2rem 0.5rem',
-              borderRadius: '999px',
-              letterSpacing: '0.03em',
-            }}>
+            <span className="bg-[linear-gradient(135deg,#f59e0b,#d97706)] text-white text-[0.6875rem] font-bold px-2 py-[0.2rem] rounded-full tracking-[0.03em]">
               🏆 Match Secured
             </span>
           )}
           <button
             onClick={() => onEdit(account)}
             title="Edit account"
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '0.375rem',
-              padding: '0.25rem 0.5rem',
-              cursor: 'pointer',
-              color: 'var(--text-muted)',
-              fontSize: '0.75rem',
-            }}
+            className="bg-transparent border border-[var(--border-subtle)] rounded-[0.375rem] px-2 py-1 cursor-pointer text-[var(--text-muted)] text-xs"
           >
             ✏️
           </button>
@@ -101,60 +79,34 @@ export function RetirementCard({ account, onEdit }: RetirementCardProps) {
       </div>
 
       {/* Contribution amounts */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.625rem' }}>
-        <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+      <div className="flex justify-between mb-[0.625rem]">
+        <span className="text-lg font-bold text-[var(--text-primary)]">
           {fmt(account.ytd_contributions)}
         </span>
-        <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+        <span className="text-sm text-[var(--text-muted)]">
           of {fmt(account.annual_limit)} limit
         </span>
       </div>
 
       {/* Progress bar track */}
-      <div style={{
-        position: 'relative',
-        height: 12,
-        borderRadius: 999,
-        background: 'var(--bg-base)',
-        border: '1px solid var(--border-subtle)',
-        overflow: 'visible',
-        marginBottom: '0.5rem',
-      }}>
+      <div className="relative h-3 rounded-full bg-[var(--bg-base)] border border-[var(--border-subtle)] overflow-visible mb-2">
         {/* Fill */}
-        <div style={{
-          position: 'absolute',
-          left: 0, top: 0, bottom: 0,
-          width: `${fillPct}%`,
-          background: barColor,
-          borderRadius: 999,
-          transition: 'width 0.4s ease',
-        }} />
+        <div
+          className="absolute left-0 top-0 bottom-0 rounded-full transition-[width] duration-[400ms]"
+          style={{ width: `${fillPct}%`, background: barColor }}
+        />
 
         {/* Ghost car notch */}
         <div
           title={`On-pace target: ${fmt(targetPace)}`}
-          style={{
-            position: 'absolute',
-            top: -2, bottom: -2,
-            left: `${pacePct}%`,
-            width: 2,
-            background: 'rgba(255,255,255,0.85)',
-            borderRadius: 2,
-            zIndex: 2,
-            transform: 'translateX(-50%)',
-          }}
+          className="absolute -top-0.5 -bottom-0.5 w-[2px] bg-white/85 rounded-[2px] z-[2] -translate-x-1/2"
+          style={{ left: `${pacePct}%` }}
         />
         {/* Ghost car label */}
-        <div style={{
-          position: 'absolute',
-          top: -18,
-          left: `${pacePct}%`,
-          transform: 'translateX(-50%)',
-          fontSize: '0.5625rem',
-          color: 'var(--text-muted)',
-          whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-        }}>
+        <div
+          className="absolute -top-[18px] text-[0.5625rem] text-[var(--text-muted)] whitespace-nowrap pointer-events-none -translate-x-1/2"
+          style={{ left: `${pacePct}%` }}
+        >
           👻
         </div>
 
@@ -163,25 +115,13 @@ export function RetirementCard({ account, onEdit }: RetirementCardProps) {
           <>
             <div
               title={`Free money checkpoint: ${fmt(matchTarget!)}`}
-              style={{
-                position: 'absolute',
-                top: -4, bottom: -4,
-                left: `${matchPct}%`,
-                width: 2,
-                borderLeft: '2px dashed #f59e0b',
-                zIndex: 3,
-                transform: 'translateX(-50%)',
-              }}
+              className="absolute -top-1 -bottom-1 w-[2px] border-l-2 border-dashed border-amber-400 z-[3] -translate-x-1/2"
+              style={{ left: `${matchPct}%` }}
             />
-            <div style={{
-              position: 'absolute',
-              top: -20,
-              left: `${matchPct}%`,
-              transform: 'translateX(-50%)',
-              fontSize: '0.625rem',
-              whiteSpace: 'nowrap',
-              pointerEvents: 'none',
-            }}>
+            <div
+              className="absolute -top-5 text-[0.625rem] whitespace-nowrap pointer-events-none -translate-x-1/2"
+              style={{ left: `${matchPct}%` }}
+            >
               ⭐
             </div>
           </>
@@ -189,11 +129,11 @@ export function RetirementCard({ account, onEdit }: RetirementCardProps) {
       </div>
 
       {/* Status text */}
-      <div style={{ fontSize: '0.75rem', minHeight: '1rem' }}>
+      <div className="text-xs min-h-4">
         {isOnPace ? (
-          <span style={{ color: '#22c55e', fontWeight: 600 }}>✓ On pace</span>
+          <span className="text-green-500 font-semibold">✓ On pace</span>
         ) : (
-          <span style={{ color: '#f59e0b', fontWeight: 600 }}>
+          <span className="text-amber-400 font-semibold">
             +{fmt(monthlyNeeded)}/mo to catch up
           </span>
         )}

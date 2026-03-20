@@ -5,31 +5,11 @@ import type { RetirementAccount, RetirementCreate, RetirementUpdate } from '../.
 
 const API = 'http://localhost:8000';
 
-// ── Shared input styles ───────────────────────────────────────────────────────
+// ── Shared class strings ──────────────────────────────────────────────────────
 
-const INPUT: React.CSSProperties = {
-  width: '100%',
-  padding: '0.5rem 0.75rem',
-  borderRadius: '0.4375rem',
-  border: '1px solid var(--border-subtle)',
-  background: 'var(--bg-base)',
-  color: 'var(--text-primary)',
-  fontSize: '0.9375rem',
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const LABEL: React.CSSProperties = {
-  display: 'block',
-  fontSize: '0.8125rem',
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  marginBottom: '0.375rem',
-};
-
-const FIELD: React.CSSProperties = {
-  marginBottom: '1rem',
-};
+const INPUT = 'w-full px-3 py-2 rounded-[0.4375rem] border border-[var(--border-subtle)] bg-[var(--bg-base)] text-[var(--text-primary)] text-[0.9375rem] outline-none box-border';
+const LABEL = 'block text-[0.8125rem] font-semibold text-[var(--text-secondary)] mb-1.5';
+const FIELD = 'mb-4';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -132,11 +112,7 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.4)',
-          zIndex: 200,
-        }}
+        className="fixed inset-0 bg-black/40 z-[200]"
       />
 
       {/* Panel */}
@@ -146,78 +122,66 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        style={{
-          position: 'fixed', right: 0, top: 0, bottom: 0,
-          width: 440,
-          background: 'var(--bg-card)',
-          borderLeft: '1px solid var(--border-subtle)',
-          zIndex: 201,
-          display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
-        }}
+        className="fixed right-0 top-0 bottom-0 w-[440px] bg-[var(--bg-card)] border-l border-[var(--border-subtle)] z-[201] flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div style={{
-          padding: '1.5rem',
-          borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+        <div className="p-6 border-b border-[var(--border-subtle)] flex justify-between items-center">
+          <h2 className="m-0 text-lg font-bold text-[var(--text-primary)]">
             {isEdit ? 'Edit Account' : 'Add Account'}
           </h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: 'var(--text-muted)' }}>
+          <button onClick={onClose} className="bg-transparent border-none cursor-pointer text-xl text-[var(--text-muted)]">
             ✕
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
-          <div style={FIELD}>
-            <label style={LABEL}>Account Name</label>
-            <input style={INPUT} value={form.account_name} onChange={e => set('account_name', e.target.value)} required />
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+          <div className={FIELD}>
+            <label className={LABEL}>Account Name</label>
+            <input className={INPUT} value={form.account_name} onChange={e => set('account_name', e.target.value)} required />
           </div>
 
-          <div style={FIELD}>
-            <label style={LABEL}>Account Type</label>
-            <input style={INPUT} value={form.account_type} onChange={e => set('account_type', e.target.value)}
+          <div className={FIELD}>
+            <label className={LABEL}>Account Type</label>
+            <input className={INPUT} value={form.account_type} onChange={e => set('account_type', e.target.value)}
               placeholder="e.g. 401k, HSA, Roth IRA" required />
           </div>
 
-          <div style={FIELD}>
-            <label style={LABEL}>Owner</label>
-            <select style={INPUT} value={form.owner} onChange={e => set('owner', e.target.value)}>
+          <div className={FIELD}>
+            <label className={LABEL}>Owner</label>
+            <select className={INPUT} value={form.owner} onChange={e => set('owner', e.target.value)}>
               <option value="Steven">Steven</option>
               <option value="Wife">Wife</option>
             </select>
           </div>
 
-          <div style={FIELD}>
-            <label style={LABEL}>Annual Limit ($)</label>
-            <input style={INPUT} type="number" min={1} step={1} value={form.annual_limit}
+          <div className={FIELD}>
+            <label className={LABEL}>Annual Limit ($)</label>
+            <input className={INPUT} type="number" min={1} step={1} value={form.annual_limit}
               onChange={e => set('annual_limit', e.target.value)} required />
           </div>
 
-          <div style={FIELD}>
-            <label style={LABEL}>YTD Contributions ($)</label>
-            <input style={INPUT} type="number" min={0} step={0.01} value={form.ytd_contributions}
+          <div className={FIELD}>
+            <label className={LABEL}>YTD Contributions ($)</label>
+            <input className={INPUT} type="number" min={0} step={0.01} value={form.ytd_contributions}
               onChange={e => set('ytd_contributions', e.target.value)} required />
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '1rem 0', paddingTop: '1rem' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div className="border-t border-[var(--border-subtle)] my-4 pt-4">
+            <div className="text-xs text-[var(--text-muted)] mb-3 font-semibold uppercase tracking-[0.06em]">
               Employer Match (optional)
             </div>
 
-            <div style={FIELD}>
-              <label style={LABEL}>Match Target ($) — contribute this much to earn full match</label>
-              <input style={INPUT} type="number" min={0} step={0.01} value={form.employer_match_target}
+            <div className={FIELD}>
+              <label className={LABEL}>Match Target ($) — contribute this much to earn full match</label>
+              <input className={INPUT} type="number" min={0} step={0.01} value={form.employer_match_target}
                 onChange={e => set('employer_match_target', e.target.value)}
                 placeholder="Leave blank if no match" />
             </div>
 
-            <div style={FIELD}>
-              <label style={LABEL}>Match Amount YTD ($) — dollars matched so far</label>
-              <input style={INPUT} type="number" min={0} step={0.01} value={form.employer_match_amount}
+            <div className={FIELD}>
+              <label className={LABEL}>Match Amount YTD ($) — dollars matched so far</label>
+              <input className={INPUT} type="number" min={0} step={0.01} value={form.employer_match_amount}
                 onChange={e => set('employer_match_amount', e.target.value)}
                 placeholder="Leave blank if no match" />
             </div>
@@ -226,18 +190,7 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
           <button
             type="submit"
             disabled={isPending}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              background: 'var(--accent-blue)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: 700,
-              fontSize: '1rem',
-              cursor: isPending ? 'not-allowed' : 'pointer',
-              opacity: isPending ? 0.7 : 1,
-            }}
+            className={`w-full py-3 bg-[var(--accent-blue)] text-white border-none rounded-lg font-bold text-base ${isPending ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
           >
             {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Account'}
           </button>
@@ -245,45 +198,26 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
 
         {/* Delete (edit mode only) */}
         {isEdit && (
-          <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="px-6 py-4 border-t border-[var(--border-subtle)]">
             {!confirmDelete ? (
               <button
                 onClick={() => setConfirmDelete(true)}
-                style={{
-                  width: '100%', padding: '0.625rem',
-                  background: 'transparent',
-                  border: '1px solid var(--accent-red)',
-                  borderRadius: '0.5rem',
-                  color: 'var(--accent-red)',
-                  fontWeight: 600, cursor: 'pointer',
-                }}
+                className="w-full py-[0.625rem] bg-transparent border border-[var(--accent-red)] rounded-lg text-[var(--accent-red)] font-semibold cursor-pointer"
               >
                 Delete Account
               </button>
             ) : (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div className="flex gap-2">
                 <button
                   onClick={() => deleteMutation.mutate()}
                   disabled={isPending}
-                  style={{
-                    flex: 1, padding: '0.625rem',
-                    background: 'var(--accent-red)',
-                    border: 'none', borderRadius: '0.5rem',
-                    color: '#fff', fontWeight: 700, cursor: 'pointer',
-                  }}
+                  className="flex-1 py-[0.625rem] bg-[var(--accent-red)] border-none rounded-lg text-white font-bold cursor-pointer"
                 >
                   Confirm Delete
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  style={{
-                    flex: 1, padding: '0.625rem',
-                    background: 'transparent',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '0.5rem',
-                    color: 'var(--text-secondary)',
-                    fontWeight: 600, cursor: 'pointer',
-                  }}
+                  className="flex-1 py-[0.625rem] bg-transparent border border-[var(--border-subtle)] rounded-lg text-[var(--text-secondary)] font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>

@@ -41,7 +41,7 @@ export default function TaxRetirementTab() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
+      <div className="flex justify-center p-16 text-[var(--text-muted)]">
         Loading retirement data…
       </div>
     );
@@ -49,7 +49,7 @@ export default function TaxRetirementTab() {
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', color: 'var(--accent-red)' }}>
+      <div className="p-8 text-[var(--accent-red)]">
         Failed to load retirement accounts.
       </div>
     );
@@ -58,64 +58,49 @@ export default function TaxRetirementTab() {
   return (
     <div>
       {/* ── Page header ────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+          <h1 className="m-0 text-2xl font-extrabold text-[var(--text-primary)]">
             Tax Shield
           </h1>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          <p className="mt-1 mb-0 text-sm text-[var(--text-muted)]">
             Tax-advantaged contribution tracker
           </p>
         </div>
         <button
           onClick={() => setModalAccount('new')}
-          style={{
-            padding: '0.625rem 1.25rem',
-            background: 'var(--accent-blue)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '0.5rem',
-            fontWeight: 700,
-            fontSize: '0.9375rem',
-            cursor: 'pointer',
-          }}
+          className="px-5 py-2.5 bg-[var(--accent-blue)] text-white border-none rounded-lg font-bold text-[0.9375rem] cursor-pointer"
         >
           + Add Account
         </button>
       </div>
 
       {/* ── KPI Scoreboard ─────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, var(--accent-blue), #6366f1)',
-        borderRadius: '1rem',
-        padding: '2rem',
-        marginBottom: '2rem',
-        color: '#fff',
-      }}>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.8, marginBottom: '0.5rem' }}>
+      <div className="bg-[linear-gradient(135deg,var(--accent-blue),#6366f1)] rounded-2xl p-8 mb-8 text-white">
+        <div className="text-xs font-semibold tracking-[0.1em] uppercase opacity-80 mb-2">
           Total Tax Shield
         </div>
-        <div style={{ fontSize: '3rem', fontWeight: 900, lineHeight: 1, marginBottom: '0.5rem' }}>
+        <div className="text-5xl font-black leading-none mb-2">
           {fmt(totalShield)}
         </div>
-        <div style={{ fontSize: '0.875rem', opacity: 0.75, marginBottom: '1.5rem' }}>
+        <div className="text-sm opacity-75 mb-6">
           Estimated taxes saved YTD · Based on 24% marginal rate
         </div>
 
         {/* Secondary KPIs */}
-        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+        <div className="flex gap-8 flex-wrap">
           <div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{fmt(totalContributions)}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.75 }}>Total YTD Contributions</div>
+            <div className="text-xl font-bold">{fmt(totalContributions)}</div>
+            <div className="text-xs opacity-75">Total YTD Contributions</div>
           </div>
           <div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{accounts.length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.75 }}>Active Accounts</div>
+            <div className="text-xl font-bold">{accounts.length}</div>
+            <div className="text-xs opacity-75">Active Accounts</div>
           </div>
           {matchCount > 0 && (
             <div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>🏆 {matchCount}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.75 }}>Matches Secured</div>
+              <div className="text-xl font-bold">🏆 {matchCount}</div>
+              <div className="text-xs opacity-75">Matches Secured</div>
             </div>
           )}
         </div>
@@ -123,27 +108,22 @@ export default function TaxRetirementTab() {
 
       {/* ── Empty state ────────────────────────────────────────────────── */}
       {accounts.length === 0 && (
-        <div style={{
-          textAlign: 'center', padding: '4rem 2rem',
-          border: '2px dashed var(--border-subtle)',
-          borderRadius: '1rem',
-          color: 'var(--text-muted)',
-        }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🛡️</div>
-          <p style={{ fontSize: '1rem', margin: 0 }}>No accounts yet. Add one to start tracking your Tax Shield.</p>
+        <div className="text-center py-16 px-8 border-2 border-dashed border-[var(--border-subtle)] rounded-2xl text-[var(--text-muted)]">
+          <div className="text-[2.5rem] mb-4">🛡️</div>
+          <p className="text-base m-0">No accounts yet. Add one to start tracking your Tax Shield.</p>
         </div>
       )}
 
       {/* ── Player grid ────────────────────────────────────────────────── */}
       {accounts.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+        <div className="grid grid-cols-2 gap-8">
           {/* Steven */}
           <div>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <h2 className="text-base font-bold text-[var(--text-secondary)] mb-4 uppercase tracking-[0.06em]">
               Steven
             </h2>
             {steven.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No accounts.</p>
+              <p className="text-[var(--text-muted)] text-sm">No accounts.</p>
             ) : (
               steven.map(acc => (
                 <RetirementCard
@@ -157,11 +137,11 @@ export default function TaxRetirementTab() {
 
           {/* Wife */}
           <div>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <h2 className="text-base font-bold text-[var(--text-secondary)] mb-4 uppercase tracking-[0.06em]">
               Wife
             </h2>
             {wife.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No accounts.</p>
+              <p className="text-[var(--text-muted)] text-sm">No accounts.</p>
             ) : (
               wife.map(acc => (
                 <RetirementCard
