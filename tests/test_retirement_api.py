@@ -1,5 +1,4 @@
 """Tests for the retirement_accounts CRUD API."""
-import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,7 +7,7 @@ from backend.main import app
 from backend.deps import get_db
 
 
-# ── Fixture ─────────────────────────────────────────────────────────────────
+# ── Fixture (used by CRUD API tests added in Task 3) ─────────────────────────
 
 @pytest.fixture()
 def client():
