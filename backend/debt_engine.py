@@ -106,6 +106,7 @@ def simulate_payoff(
     monthly_allocation: float,
     strategy: Literal["snowball", "avalanche"],
     db_terms: "DbTerms | None" = None,
+    lump_sums: "dict[int, float] | None" = None,
 ) -> PayoffScenario:
     """
     Simulate month-by-month debt payoff.
@@ -115,7 +116,14 @@ def simulate_payoff(
 
     APR comes from DebtAccount.rate (pre-resolved by engine.py via db_terms).
     Min payments check db_terms first, then MINIMUM_PAYMENTS, then 1% fallback.
+
+    lump_sums maps months_from_now (0-indexed) to extra cash applied that month,
+    e.g. {6: 4200.0} means a $4,200 lump-sum payment 6 months from now.
+    This is used to inject projected equity vest proceeds directly into the
+    payoff simulation so the payoff date reflects upcoming RSU liquidity events.
     """
+    _lump_sums = lump_sums or {}
+
     # Build a mutable working list (only accounts with a non-trivial balance)
     working: list[dict] = [
         {
@@ -139,7 +147,7 @@ def simulate_payoff(
     total_interest = 0.0
     monthly_balances: list[float] = []
 
-    for _ in range(MAX_SIMULATION_MONTHS):
+    for months_elapsed in range(MAX_SIMULATION_MONTHS):
         # Step 1: Apply monthly interest to all accounts
         for acct in working:
             monthly_rate = acct["apr"] / 12.0
@@ -147,7 +155,19 @@ def simulate_payoff(
             acct["balance"] += interest
             total_interest += interest
 
-        # Step 2: Apply minimum payments to all accounts
+        # Step 2: Apply equity vest lump sum (if one falls on this month)
+        # Applied before the regular allocation so it accelerates the target debt.
+        lump = _lump_sums.get(months_elapsed, 0.0)
+        if lump > 0.0:
+            remaining_lump = lump
+            for acct in working:
+                if acct["balance"] > 0 and remaining_lump > 0:
+                    payment = min(remaining_lump, acct["balance"])
+                    acct["balance"] = max(0.0, acct["balance"] - payment)
+                    remaining_lump -= payment
+                    # Continue to next account if lump sum exceeds this balance
+
+        # Step 3: Apply minimum payments to all accounts
         remaining = monthly_allocation
         for acct in working:
             min_pmt = _get_min_payment(acct["name"], acct["balance"], db_terms)
@@ -155,7 +175,7 @@ def simulate_payoff(
             acct["balance"] = max(0.0, acct["balance"] - payment)
             remaining -= payment
 
-        # Step 3: Apply remaining allocation to the current target (first non-zero)
+        # Step 4: Apply remaining allocation to the current target (first non-zero)
         remaining = max(0.0, remaining)
         for acct in working:
             if acct["balance"] > 0 and remaining > 0:
@@ -164,13 +184,13 @@ def simulate_payoff(
                 remaining -= payment
                 break  # snowball/avalanche: one target per month
 
-        # Step 4: Remove paid-off accounts (under $0.01 = effectively zero)
+        # Step 5: Remove paid-off accounts (under $0.01 = effectively zero)
         working = [a for a in working if a["balance"] > 0.01]
 
-        # Step 5: Record total remaining balance
+        # Step 6: Record total remaining balance
         monthly_balances.append(round(sum(a["balance"] for a in working), 2))
 
-        # Step 6: Exit when all accounts are paid off
+        # Step 7: Exit when all accounts are paid off
         if not working:
             break
 
@@ -189,16 +209,19 @@ def build_projection(
     accounts: list[DebtAccount],
     monthly_allocation: float = 2000.0,
     db_terms: "DbTerms | None" = None,
+    lump_sums: "dict[int, float] | None" = None,
 ) -> DebtProjection:
     """
     Run both strategies and return a single DebtProjection.
 
-    db_terms: pre-fetched from account_terms table by engine.py.
-              Keys are truncated account names (last 28 chars), matching
-              DebtAccount.name. Values are (apr_decimal, min_payment_dollars).
+    db_terms:   pre-fetched from account_terms table by engine.py.
+                Keys are display names matching DebtAccount.name.
+                Values are (apr_decimal, min_payment_dollars).
+    lump_sums:  optional dict of {months_from_now: extra_cash} representing
+                projected equity vest proceeds to inject as one-time payments.
     """
     return DebtProjection(
-        snowball=simulate_payoff(accounts, monthly_allocation, "snowball", db_terms),
-        avalanche=simulate_payoff(accounts, monthly_allocation, "avalanche", db_terms),
+        snowball=simulate_payoff(accounts, monthly_allocation, "snowball", db_terms, lump_sums),
+        avalanche=simulate_payoff(accounts, monthly_allocation, "avalanche", db_terms, lump_sums),
         monthly_allocation=monthly_allocation,
     )

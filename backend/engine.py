@@ -9,28 +9,34 @@ Run standalone to verify:
 """
 from __future__ import annotations
 
+import json
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 
 from backend.classify import classify, get_minimum_payment_total, guess_interest_rate
 from backend.database import init_db
-from backend.debt_engine import build_projection   # NEW
+from backend.debt_engine import build_projection
+from backend.equity_engine import calculate_price_scenarios_from_history, fetch_stock_history
 from backend.models import (
     Account,
     CashFlowWaterfall,
     DebtAccount,
-    DebtProjection,      # NEW
+    DebtProjection,
     DebtSection,
     DebtTrend,
-    PayoffScenario,      # NEW
+    EquitySection,
+    EquityVestSummary,
+    PayoffScenario,
     PeriodData,
     SankeyFlow,
     Summary,
     Transaction,
 )
+
+_TAX_WITHHOLDING = 0.30
 
 _BACKEND_DIR = Path(__file__).parent
 _PROJECT_ROOT = _BACKEND_DIR.parent
@@ -135,12 +141,11 @@ def build_period(conn: sqlite3.Connection, period_key: str) -> PeriodData:
     period_months = get_period_months(period_key)
     ms = set(period_months)
 
+    placeholders = ",".join("?" * len(period_months))
     df = pd.read_sql_query(
-        """
-        SELECT date, merchant, category, amount, is_checking
-        FROM transactions
-        """,
+        f"SELECT date, merchant, category, amount, is_checking FROM transactions WHERE substr(date, 1, 7) IN ({placeholders})",
         conn,
+        params=period_months,
     )
 
     if df.empty:
@@ -387,6 +392,22 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
             rate=apr,
         ))
 
+    # ── Equity vest lump sums ─────────────────────────────────────────────
+    # Convert upcoming vest projected_avg values into a {months_from_now: $}
+    # dict so the payoff simulator can apply them as one-time debt payments.
+    # Silently skipped if equity data is unavailable (e.g. yfinance offline).
+    lump_sums: dict[int, float] = {}
+    try:
+        equity = build_equity_section(conn)
+        today = date.today()
+        for vest in equity.upcoming_vests:
+            vest_dt = datetime.strptime(vest.date, "%Y-%m-%d").date()
+            m = (vest_dt.year - today.year) * 12 + (vest_dt.month - today.month)
+            if m > 0:
+                lump_sums[m] = lump_sums.get(m, 0.0) + vest.projected_avg
+    except Exception:
+        pass  # degrade gracefully; projection still runs without lump sums
+
     return DebtSection(
         accounts=debt_accounts,
         trend=DebtTrend(labels=list(all_months), values=debt_month_values),
@@ -394,6 +415,7 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
             debt_accounts,
             monthly_allocation=2000.0,
             db_terms=simulation_terms,
+            lump_sums=lump_sums if lump_sums else None,
         ),
     )
 
@@ -431,6 +453,99 @@ def get_recent_transactions(conn: sqlite3.Connection) -> list[Transaction]:
         )
         for r in df.to_dict("records")
     ]
+
+
+# ---------------------------------------------------------------------------
+# build_equity_section
+# ---------------------------------------------------------------------------
+
+def build_equity_section(conn: sqlite3.Connection) -> EquitySection:
+    """
+    Load all equity grants, project prices for upcoming vest dates using GBM,
+    apply 30% tax withholding to share counts, and return a structured
+    EquitySection payload.
+
+    Stock history is fetched once per unique ticker to avoid redundant yfinance
+    network calls when a grant has multiple tranches.
+
+    Any ticker whose yfinance download fails is silently skipped so a single
+    bad ticker cannot break the whole response.
+    """
+    rows = conn.execute(
+        "SELECT ticker, vesting_schedule FROM equity_grants"
+    ).fetchall()
+
+    if not rows:
+        return EquitySection(
+            total_unvested_value=0.0,
+            next_vest_date=None,
+            projected_net_cash_12m=0.0,
+            upcoming_vests=[],
+        )
+
+    today = date.today()
+
+    # ── Group future events by ticker ──────────────────────────────────────
+    # Structure: { ticker: [ {date, shares, days_until}, ... ] }
+    ticker_events: dict[str, list[dict]] = {}
+    for row in rows:
+        ticker = row["ticker"]
+        for event in json.loads(row["vesting_schedule"]):
+            vest_date = datetime.strptime(event["date"], "%Y-%m-%d").date()
+            if vest_date <= today:
+                continue
+            ticker_events.setdefault(ticker, []).append({
+                "date":       event["date"],
+                "shares":     float(event["shares"]),
+                "days_until": (vest_date - today).days,
+            })
+
+    # ── Fetch history once per ticker, project all its vest events ─────────
+    upcoming_vests: list[EquityVestSummary] = []
+
+    for ticker, events in ticker_events.items():
+        try:
+            history = fetch_stock_history(ticker)
+        except Exception:
+            continue  # skip entire ticker if yfinance unavailable
+
+        for ev in events:
+            try:
+                scenarios = calculate_price_scenarios_from_history(history, ev["days_until"])
+            except Exception:
+                continue
+
+            gross = ev["shares"]
+            net   = round(gross * (1 - _TAX_WITHHOLDING), 4)
+
+            upcoming_vests.append(EquityVestSummary(
+                date=ev["date"],
+                ticker=ticker,
+                gross_shares=gross,
+                net_shares=net,
+                current_value=round(net * scenarios.current_price, 2),
+                projected_avg=round(net * scenarios.average, 2),
+                projected_best=round(net * scenarios.best, 2),
+                projected_worst=round(net * scenarios.worst, 2),
+                annualized_volatility=scenarios.annualized_volatility,
+                days_until_vest=ev["days_until"],
+            ))
+
+    upcoming_vests.sort(key=lambda v: v.date)
+
+    total_unvested  = round(sum(v.current_value for v in upcoming_vests), 2)
+    next_vest_date  = upcoming_vests[0].date if upcoming_vests else None
+    cutoff_12m      = (today + timedelta(days=365)).isoformat()
+    projected_12m   = round(
+        sum(v.projected_avg for v in upcoming_vests if v.date <= cutoff_12m), 2
+    )
+
+    return EquitySection(
+        total_unvested_value=total_unvested,
+        next_vest_date=next_vest_date,
+        projected_net_cash_12m=projected_12m,
+        upcoming_vests=upcoming_vests,
+    )
 
 
 # ---------------------------------------------------------------------------

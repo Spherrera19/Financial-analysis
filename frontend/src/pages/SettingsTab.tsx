@@ -1,10 +1,191 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Theme } from '../lib/theme';
 
 interface SettingsTabProps {
   activeTheme: Theme;
   onThemeChange: (t: Theme) => void;
   onRefresh: () => void;
+}
+
+type OnError = (msg: string) => void;
+
+// ---------------------------------------------------------------------------
+// Data Import section
+// ---------------------------------------------------------------------------
+
+type UploadState = 'idle' | 'uploading' | 'success' | 'error';
+
+const VALID_PREFIXES = ['Transactions', 'Balances', 'Equity', 'RSU'];
+
+function DataImportSection({ onRefresh, onError }: { onRefresh: () => void; onError: OnError }) {
+  const [uploadState, setUploadState] = useState<UploadState>('idle');
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [grantsImported, setGrantsImported] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    // Validate all filenames before uploading
+    const fileArray = Array.from(files);
+    const invalid = fileArray.filter(
+      f => !VALID_PREFIXES.some(p => f.name.startsWith(p)) || !f.name.endsWith('.csv'),
+    );
+    if (invalid.length > 0) {
+      setUploadState('error');
+      setErrorMessage(
+        `Invalid file(s): ${invalid.map(f => f.name).join(', ')}. ` +
+        `Accepted: Transactions_*.csv, Balances_*.csv (Monarch), or Equity_*.csv / RSU_*.csv (brokerage).`,
+      );
+      return;
+    }
+
+    setUploadState('uploading');
+    setErrorMessage(null);
+    setGrantsImported(null);
+
+    const formData = new FormData();
+    for (const file of fileArray) {
+      formData.append('files', file, file.name);
+    }
+
+    try {
+      const res = await fetch(`${API}/api/upload/csv`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { detail?: string };
+        throw new Error(err.detail ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json() as { uploaded: string[]; count: number; grants_imported?: number };
+      setUploadedFiles(data.uploaded);
+      setGrantsImported(data.grants_imported ?? null);
+      setUploadState('success');
+      onRefresh();
+    } catch (e) {
+      const msg = (e as Error).message;
+      setUploadState('error');
+      setErrorMessage(msg);
+      onError(msg);
+    }
+  }, [onRefresh, onError]);
+
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); };
+  const onDragLeave = () => setIsDragOver(false);
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  const isActive = uploadState === 'uploading';
+
+  return (
+    <div>
+      {/* Drop zone */}
+      <div
+        onClick={() => !isActive && fileInputRef.current?.click()}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        style={{
+          border: `2px dashed ${isDragOver ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
+          borderRadius: '0.75rem',
+          padding: '2rem 1.5rem',
+          textAlign: 'center',
+          cursor: isActive ? 'not-allowed' : 'pointer',
+          background: isDragOver
+            ? 'color-mix(in srgb, var(--accent-blue) 6%, var(--bg-surface))'
+            : 'var(--bg-surface)',
+          transition: 'border-color 0.15s ease, background 0.15s ease',
+          userSelect: 'none',
+          marginBottom: '0.75rem',
+        }}
+      >
+        {/* Icon */}
+        <div style={{ marginBottom: '0.75rem' }}>
+          {uploadState === 'uploading' ? (
+            /* Spinner */
+            <div style={{
+              width: 36, height: 36, margin: '0 auto',
+              border: '3px solid var(--border-subtle)',
+              borderTopColor: 'var(--accent-blue)',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }} />
+          ) : uploadState === 'success' ? (
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto', display: 'block' }}>
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          ) : (
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={isDragOver ? 'var(--accent-blue)' : 'var(--text-muted)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto', display: 'block', transition: 'stroke 0.15s ease' }}>
+              <polyline points="16 16 12 12 8 16" />
+              <line x1="12" y1="12" x2="12" y2="21" />
+              <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+            </svg>
+          )}
+        </div>
+
+        {/* Label */}
+        <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 0.25rem' }}>
+          {uploadState === 'uploading'
+            ? 'Processing Data…'
+            : uploadState === 'success'
+            ? 'Import Complete'
+            : isDragOver
+            ? 'Drop files to import'
+            : 'Drop CSV files here or click to browse'}
+        </p>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+          {uploadState === 'success'
+            ? grantsImported !== null
+              ? `Imported: ${uploadedFiles.join(', ')} — ${grantsImported} grant${grantsImported !== 1 ? 's' : ''} added (existing manual entries preserved)`
+              : `Imported: ${uploadedFiles.join(', ')}`
+            : uploadState === 'idle' && !isDragOver
+            ? <>
+                Monarch: <strong style={{ color: 'var(--text-secondary)' }}>Transactions_*.csv</strong>, <strong style={{ color: 'var(--text-secondary)' }}>Balances_*.csv</strong>
+                {' · '}
+                Brokerage: <strong style={{ color: 'var(--text-secondary)' }}>Equity_*.csv</strong>, <strong style={{ color: 'var(--text-secondary)' }}>RSU_*.csv</strong>
+              </>
+            : null}
+        </p>
+      </div>
+
+      {/* Keyframe for spinner */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        multiple
+        style={{ display: 'none' }}
+        onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}
+      />
+
+      {/* Error message */}
+      {uploadState === 'error' && errorMessage && (
+        <p style={{ fontSize: '0.8rem', color: 'var(--accent-red)', margin: '0.5rem 0 0' }}>
+          {errorMessage}
+        </p>
+      )}
+
+      {/* Reset link after success */}
+      {uploadState === 'success' && (
+        <button
+          onClick={() => { setUploadState('idle'); setUploadedFiles([]); setGrantsImported(null); }}
+          style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.75rem', color: 'var(--accent-blue)', cursor: 'pointer', marginTop: '0.5rem' }}
+        >
+          Import more files
+        </button>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +267,7 @@ function loadLS<T>(key: string, fallback: T): T {
 // Debt Configuration sub-component
 // ---------------------------------------------------------------------------
 
-function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
+function DebtConfigSection({ onRefresh, onError }: { onRefresh: () => void; onError: OnError }) {
   // ── API data ──────────────────────────────────────────────────────────────
   const [terms, setTerms]           = useState<DebtTermEntry[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -109,24 +290,49 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
   const [dragOverInst, setDragOverInst] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/api/debt/settings`)
+    const controller = new AbortController();
+    fetch(`${API}/api/debt/settings`, { signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<DebtTermEntry[]>; })
       .then(data => { setTerms(data); setLoading(false); })
-      .catch((e: Error) => { setFetchError(e.message); setLoading(false); });
+      .catch((e: Error) => {
+        if (e.name !== 'AbortError') {
+          setFetchError(e.message);
+          setLoading(false);
+          onError(e.message);
+        }
+      });
+    return () => controller.abort();
   }, []);
 
   // Persist institution preferences to localStorage
   useEffect(() => { localStorage.setItem(LS_OVERRIDES, JSON.stringify(overrides)); }, [overrides]);
   useEffect(() => { localStorage.setItem(LS_CUSTOM,    JSON.stringify(customInsts)); }, [customInsts]);
 
+  // ── Number input draft state (keyed by "account_name-field") ─────────────
+  // Allows the user to type freely (e.g., clear a field) without snapping to 0.
+  // The draft is committed to `terms` only on blur.
+  const [inputDraft, setInputDraft] = useState<Record<string, string>>({});
+
+  const getDraftValue = (accountName: string, field: 'apr' | 'min_payment', termValue: number): string => {
+    const key = `${accountName}-${field}`;
+    return inputDraft[key] ?? termValue.toFixed(2);
+  };
+
   // ── Field update handlers ─────────────────────────────────────────────────
-  const updateNumber = (index: number, field: 'apr' | 'min_payment', raw: string) => {
+  const onNumberChange = (accountName: string, field: 'apr' | 'min_payment', raw: string) => {
+    setInputDraft(prev => ({ ...prev, [`${accountName}-${field}`]: raw }));
+    setSaveState('idle'); setSaveError(null);
+  };
+
+  const onNumberBlur = (index: number, accountName: string, field: 'apr' | 'min_payment') => {
+    const key = `${accountName}-${field}`;
+    const raw = inputDraft[key];
+    if (raw === undefined) return;
     const value = parseFloat(raw);
-    if (isNaN(value) && raw !== '' && raw !== '.') return;
     setTerms(prev => prev.map((t, i) =>
       i === index ? { ...t, [field]: isNaN(value) ? 0 : value, is_custom: true } : t
     ));
-    setSaveState('idle'); setSaveError(null);
+    setInputDraft(prev => { const next = { ...prev }; delete next[key]; return next; });
   };
 
   const updateNickname = (index: number, value: string) => {
@@ -200,7 +406,12 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
       }
       setSaveState('saved');
       onRefresh();
-    } catch (e) { setSaveState('error'); setSaveError((e as Error).message); }
+    } catch (e) {
+      const msg = (e as Error).message;
+      setSaveState('error');
+      setSaveError(msg);
+      onError(msg);
+    }
   };
 
   // ── Shared styles ─────────────────────────────────────────────────────────
@@ -358,8 +569,9 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
                     {/* APR */}
                     <input
                       type="number" min="0" max="100" step="0.01"
-                      value={term.apr.toFixed(2)}
-                      onChange={e => updateNumber(flatIdx, 'apr', e.target.value)}
+                      value={getDraftValue(term.account_name, 'apr', term.apr)}
+                      onChange={e => onNumberChange(term.account_name, 'apr', e.target.value)}
+                      onBlur={() => onNumberBlur(flatIdx, term.account_name, 'apr')}
                       onMouseDown={e => e.stopPropagation()}
                       style={inputStyle}
                     />
@@ -367,8 +579,9 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
                     {/* Min payment */}
                     <input
                       type="number" min="0" step="1"
-                      value={term.min_payment.toFixed(2)}
-                      onChange={e => updateNumber(flatIdx, 'min_payment', e.target.value)}
+                      value={getDraftValue(term.account_name, 'min_payment', term.min_payment)}
+                      onChange={e => onNumberChange(term.account_name, 'min_payment', e.target.value)}
+                      onBlur={() => onNumberBlur(flatIdx, term.account_name, 'min_payment')}
                       onMouseDown={e => e.stopPropagation()}
                       style={inputStyle}
                     />
@@ -401,10 +614,189 @@ function DebtConfigSection({ onRefresh }: { onRefresh: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// System Logs sub-menu
+// ---------------------------------------------------------------------------
+
+interface LogsResponse { lines: string[]; total: number; }
+
+function levelStyle(line: string): React.CSSProperties {
+  if (line.includes('  ERROR   ') || line.includes('  ERROR  '))   return { color: '#ef4444' };
+  if (line.includes('  WARNING ') || line.includes('  WARNING'))   return { color: '#f59e0b' };
+  if (line.includes('  DEBUG   ') || line.includes('  DEBUG  '))   return { color: 'var(--text-muted)', opacity: 0.55 };
+  return { color: 'var(--text-secondary)' };
+}
+
+function SystemLogsSection() {
+  const [open,     setOpen]     = useState(false);
+  const [logs,     setLogs]     = useState<LogsResponse | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [fetchErr, setFetchErr] = useState<string | null>(null);
+  const [lineCount, setLineCount] = useState(200);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const fetchLogs = useCallback(async (n: number) => {
+    setFetching(true);
+    setFetchErr(null);
+    try {
+      const r = await fetch(`${API}/api/logs?lines=${n}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json() as LogsResponse;
+      setLogs(data);
+    } catch (e) {
+      setFetchErr((e as Error).message);
+    } finally {
+      setFetching(false);
+    }
+  }, []);
+
+  // Fetch on first open, or when lineCount changes while open
+  useEffect(() => {
+    if (open) fetchLogs(lineCount);
+  }, [open, lineCount, fetchLogs]);
+
+  // Scroll to bottom when new log lines arrive
+  useEffect(() => {
+    if (logs) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  const inputStyle: React.CSSProperties = {
+    padding: '0.25rem 0.5rem', borderRadius: '0.375rem',
+    border: '1px solid var(--border-subtle)', background: 'var(--bg-base)',
+    color: 'var(--text-primary)', fontSize: '0.8125rem', outline: 'none',
+  };
+
+  // Memoize colored lines so they only recompute when log data changes
+  const coloredLines = useMemo(
+    () => logs?.lines ?? [],
+    [logs],
+  );
+
+  return (
+    <div>
+      {/* ── Sub-menu header (clickable accordion) ── */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', padding: '0.75rem 1rem',
+          background: open
+            ? 'color-mix(in srgb, var(--accent-blue) 6%, var(--bg-surface))'
+            : 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: open ? '0.625rem 0.625rem 0 0' : '0.625rem',
+          cursor: 'pointer', textAlign: 'left',
+          transition: 'background 0.15s ease',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          <span style={{ fontSize: '1rem' }}>📋</span>
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            System Logs
+          </span>
+          {logs && (
+            <span style={{
+              fontSize: '0.6875rem', fontWeight: 600, color: 'var(--accent-blue)',
+              background: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)',
+              padding: '0.1rem 0.4rem', borderRadius: '999px',
+            }}>
+              {logs.total.toLocaleString()} total lines
+            </span>
+          )}
+        </div>
+        <svg
+          width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', flexShrink: 0 }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {/* ── Expanded panel ── */}
+      {open && (
+        <div style={{
+          border: '1px solid var(--border-subtle)', borderTop: 'none',
+          borderRadius: '0 0 0.625rem 0.625rem',
+          background: 'var(--bg-surface)',
+          overflow: 'hidden',
+        }}>
+          {/* Toolbar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '0.625rem 1rem',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-muted)',
+            flexWrap: 'wrap',
+          }}>
+            <label style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              Show last
+              <select
+                value={lineCount}
+                onChange={e => setLineCount(Number(e.target.value))}
+                style={{ ...inputStyle, marginLeft: 4 }}
+              >
+                {[100, 200, 500, 1000].map(n => (
+                  <option key={n} value={n}>{n} lines</option>
+                ))}
+              </select>
+            </label>
+            <button
+              onClick={() => fetchLogs(lineCount)}
+              disabled={fetching}
+              style={{
+                padding: '0.3rem 0.75rem', borderRadius: '0.375rem',
+                border: '1px solid var(--border-subtle)',
+                background: fetching ? 'var(--bg-muted)' : 'var(--bg-base)',
+                color: fetching ? 'var(--text-muted)' : 'var(--text-secondary)',
+                fontSize: '0.8125rem', cursor: fetching ? 'default' : 'pointer',
+              }}
+            >
+              {fetching ? 'Refreshing…' : '↻ Refresh'}
+            </button>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+              INFO · <span style={{ color: '#f59e0b' }}>WARNING</span> · <span style={{ color: '#ef4444' }}>ERROR</span>
+            </span>
+          </div>
+
+          {/* Log viewer */}
+          {fetchErr ? (
+            <p style={{ fontSize: '0.8125rem', color: '#ef4444', padding: '1rem', margin: 0 }}>
+              {fetchErr}
+            </p>
+          ) : coloredLines.length === 0 && !fetching ? (
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', padding: '1rem', margin: 0 }}>
+              No log entries yet. The log file is created on the first API request.
+            </p>
+          ) : (
+            <div style={{
+              maxHeight: 360, overflowY: 'auto', overflowX: 'auto',
+              padding: '0.75rem 1rem',
+              fontFamily: 'ui-monospace, monospace', fontSize: '0.75rem', lineHeight: 1.55,
+            }}>
+              {coloredLines.map((line, i) => (
+                <div key={i} style={levelStyle(line)}>{line || '\u00A0'}</div>
+              ))}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SettingsTab
 // ---------------------------------------------------------------------------
 
 export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsTabProps) {
+  const [globalErrors, setGlobalErrors] = useState<string[]>([]);
+
+  const addError = useCallback((msg: string) => {
+    console.error('[SettingsTab]', msg);
+    setGlobalErrors(prev => [...prev, msg]);
+  }, []);
+
   const sectionHeader: React.CSSProperties = {
     fontSize: '0.75rem',
     fontWeight: 600,
@@ -424,9 +816,42 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsT
       }}>
         Settings
       </h1>
-      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>
+      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
         Customize your dashboard appearance and configure debt forecasting parameters.
       </p>
+
+      {/* ── Global error banner ── */}
+      {globalErrors.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          gap: '0.75rem', padding: '0.75rem 1rem', marginBottom: '1.5rem',
+          background: 'color-mix(in srgb, #ef4444 10%, transparent)',
+          border: '1px solid color-mix(in srgb, #ef4444 30%, transparent)',
+          borderRadius: '0.5rem',
+        }}>
+          <div style={{ fontSize: '0.8125rem', color: '#ef4444', lineHeight: 1.5 }}>
+            {globalErrors.map((msg, i) => <div key={i}>{msg}</div>)}
+          </div>
+          <button
+            onClick={() => setGlobalErrors([])}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '1rem', lineHeight: 1, flexShrink: 0, padding: '0 0.25rem' }}
+            aria-label="Dismiss errors"
+          >✕</button>
+        </div>
+      )}
+
+      {/* ── Data Import ── */}
+      <h2 style={sectionHeader}>Data Import</h2>
+      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+        Drop CSV exports here to refresh the dashboard. Monarch exports
+        (Transactions_*, Balances_*) replace existing files of the same type
+        automatically. Brokerage equity exports (Equity_*, RSU_*) refresh vesting
+        data on a per-ticker basis — only brokerage-imported rows for that ticker
+        are replaced, so manually entered grants are never overwritten.
+      </p>
+      <DataImportSection onRefresh={onRefresh} onError={addError} />
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
       {/* ── Theme ── */}
       <h2 style={sectionHeader}>Theme</h2>
@@ -500,7 +925,18 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsT
         to the local database and applied immediately to the Debt Snowball forecaster.
         Paid-off accounts are included so you can pre-configure cards you plan to use again.
       </p>
-      <DebtConfigSection onRefresh={onRefresh} />
+      <DebtConfigSection onRefresh={onRefresh} onError={addError} />
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
+
+      {/* ── System Logs ── */}
+      <h2 style={sectionHeader}>System Logs</h2>
+      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+        View the latest backend request and error logs. Useful for diagnosing API issues.
+      </p>
+      <SystemLogsSection />
+
+      <div style={{ height: '2rem' }} />
     </div>
   );
 }

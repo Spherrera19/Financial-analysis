@@ -150,6 +150,9 @@ function PayoffForecaster({ projection }: PayoffForecasterProps) {
           <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
             {active.payoff_months < MAX_MONTHS_DISPLAY ? payoffDate : 'Increase allocation'}
           </div>
+          <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+            Includes projected equity vesting lump sums
+          </div>
         </div>
 
         <div>

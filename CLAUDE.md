@@ -3,34 +3,41 @@
 ## Project State
 Phase 1 is COMPLETE (2026-03-12). The monolithic Vanilla HTML/Python script has been migrated to a decoupled React (Frontend) + Python (Backend) architecture.
 
+The long-term vision is a full **household and business wealth management platform** — going beyond debt and spending to track unvested equity, tax-advantaged retirement accounts, estimated tax liabilities, and multi-entity finances (household, W2, and self-employment/Schedule C).
+
 ## Tech Stack
-* **Frontend:** React, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Chart.js.
-* **Backend:** Python (generate_dashboard.py + `backend/` package). Pydantic v2, SQLite, Pandas.
-* **Data Handoff:** Python writes `frontend/public/data.json`. React fetches `./data.json` on mount.
+* **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Chart.js, @tanstack/react-query v5.
+* **Backend:** Python FastAPI (uvicorn) + `backend/` package. Pydantic v2, SQLite, Pandas.
+* **Data Handoff:** FastAPI serves `GET /api/dashboard` (bulk payload) and per-feature endpoints. React fetches via `useQuery` (BudgetTab, EquityTab) or raw `fetch` (App.tsx).
 * **Dependencies:** Managed via `requirements.txt`; install into `venv/` (`call venv\Scripts\activate`).
+* **Dev server:** `uvicorn backend.main:app --reload --port 8000` (backend) + `npx serve dist -p 3000` (frontend).
 
 ## Component Structure
 ```
 frontend/src/
   components/
-    layout/    — Sidebar, TopBar
+    layout/    — Sidebar (section-grouped nav rail), TopBar, ErrorBoundary
     cards/     — KpiCard, CollapsibleCard
-    charts/    — FlowChart, SpendingDonut, CategoryBar, DebtTrendLine, SankeyChart
+    charts/    — FlowChart, SpendingDonut, CategoryBar, DiscretionaryBar, DebtTrendLine, SankeyChart
     tables/    — TransactionTable, AccountList
-    modals/    — TransactionModal
-  pages/       — OverviewTab, CashFlowTab, SpendingTab, DebtTab, TransactionsTab
-  types.ts     — TypeScript interfaces (source of truth)
-  App.tsx      — Main app, data fetch, state
+    modals/    — TransactionDrawer (drill-down slide panel)
+  pages/       — OverviewTab, CashFlowTab, SpendingTab, DebtTab, TransactionsTab, EquityTab, BudgetTab, SettingsTab
+  types.ts     — TypeScript interfaces (source of truth); includes DrawerFilter
+  App.tsx      — Main app, data fetch, drawer state (openDrawer/closeDrawer), theme
+  main.tsx     — ReactDOM root + QueryClientProvider + ErrorBoundary
   lib/utils.ts — cn() helper
+  lib/theme.ts — applyTheme, loadTheme
 ```
 
 ## Data Handoff
-Python writes `frontend/public/data.json`. React fetches `./data.json` on mount via a `useEffect` in `App.tsx`. The TypeScript interfaces in `frontend/src/types.ts` are the ultimate source of truth — Python output must match them exactly.
+FastAPI (`backend/main.py`) serves `GET /api/dashboard` (bulk payload) and per-feature endpoints (`/api/transactions`, `/api/routing`, `/api/equity`, etc.). React fetches the dashboard payload via raw `fetch` in `App.tsx`; BudgetTab and EquityTab use `@tanstack/react-query v5` `useQuery`/`useMutation` for their own endpoints. The TypeScript interfaces in `frontend/src/types.ts` are the ultimate source of truth — Python output must match them exactly.
 
 ## Running the Dashboard
-Run `refresh.bat` — this generates data.json, builds the React app, and opens the dashboard at `http://localhost:3000`.
+**Backend:** `uvicorn backend.main:app --reload --port 8000` (activate venv first: `call venv\Scripts\activate`)
+**Frontend:** `npm run build && npx serve dist -p 3000`
+Or run `refresh.bat` for the full pipeline (ingest → engine → validate → build → serve).
 
-Note: `npx serve` is used instead of opening `index.html` directly because the `file://` protocol blocks `fetch('./data.json')` due to CORS restrictions.
+Note: `npx serve` is used instead of opening `index.html` directly because the `file://` protocol blocks fetch requests due to CORS restrictions.
 
 ## Strict Development Rules
 1. **Tailwind v4:** Do NOT create or look for `tailwind.config.js`. All Tailwind v4 configuration lives in `src/index.css`.
@@ -42,41 +49,44 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 * **Phase 1:** ✅ COMPLETE (2026-03-12) — React UI rebuild with data.json pipeline
 * **Phase 1.5:** ✅ COMPLETE (2026-03-14) — 5-theme system
 * **Phase 1.6:** ✅ COMPLETE (2026-03-14) — Navigation Rail (replaces hamburger/drawer)
-* **Phase 2:** ✅ COMPLETE (2026-03-16) — SQLite + Pydantic backend pipeline.
-* **Phase 3 (Steps 1 & 2):** ✅ COMPLETE (2026-03-16) — Discretionary Waterfall & Debt Snowball Forecaster.
-* **Phase 4:** 🔄 IN PROGRESS — FastAPI Backend Wrapper & UI Interactivity.
+* **Phase 2:** ✅ COMPLETE (2026-03-16) — SQLite + Pydantic backend pipeline
+* **Phase 3 (Steps 1 & 2):** ✅ COMPLETE (2026-03-16) — Discretionary Waterfall & Debt Snowball Forecaster
+* **Phase 4:** ✅ COMPLETE (2026-03-17) — FastAPI backend wrapper + Budget & Routing tab + Equity CSV import
+* **Phase 5.5:** ✅ COMPLETE (2026-03-20) — Stabilization & Interactive Drill-Downs (backend split, React Query, TransactionDrawer, chart click-through)
+* **Phase 5:** ⏳ UPCOMING — RSU & Equity Tracking (equity engine, vesting timeline UI)
+* **Phase 6:** ⏳ UPCOMING — Retirement & Tax Strategy (401k/HSA tracking, tax liability estimator)
+* **Phase 7:** ⏳ UPCOMING — Multi-Entity Household & Business Architecture
 
 ---
 
-## Future Roadmap: Phases 4, 5, & 6
+## Future Roadmap: Phases 5, 6, & 7
 
-### Phase 4: The Interactive App (Local API) — **CURRENT PHASE**
-**Goal:** Sunset the `refresh.bat` terminal script and transition to a real-time local web application to allow two-way data binding and file uploads.
-* [ ] **Step 1: FastAPI Backend Wrapper**
-  * Wrap the existing pure Pydantic models and SQLite database into a local FastAPI server (`localhost:8000`).
-* [ ] **Step 2: Interactive Debt Settings API**
-  * **Backend:** Create `POST` routes to update the `account_terms` SQLite table.
-  * **Frontend:** Build the "Debt Configuration" input fields in `SettingsTab.tsx` to overwrite the mocked APRs manually.
-* [ ] **Step 3: Frontend CSV Uploads**
-  * **Frontend:** Build a drag-and-drop zone in React for Monarch/Bank CSVs.
-  * **Flow:** React `POST`s files to FastAPI -> FastAPI triggers `ingest.py` and `engine.py` -> UI refreshes instantly.
-
-### Phase 5: Automated PDF Document Processing
-**Goal:** Eliminate manual APR tracking by extracting terms directly from official bank statement PDFs.
-* [ ] **Step 1: PDF Parsing Engine**
-  * Integrate a Python PDF library (e.g., `pdfplumber`) into `backend/ingest.py`.
-  * Write extraction logic to locate "Annual Percentage Rate", "Minimum Payment", and "Statement Balance" via regex or text positioning.
-* [ ] **Step 2: Drag-and-Drop Extension**
-  * Update the React drag-and-drop zone to accept `.pdf` files.
-  * Route PDF uploads to the new parsing engine, which updates the `account_terms` table automatically and recalculates the Debt Snowball forecaster.
-
-### Phase 6: RSU & Equity Tracking (Deferred from Phase 3)
-**Goal:** Build stock tracking now that the Phase 4 API allows for easy data input.
+### Phase 5: RSU & Equity Tracking (CURRENT PHASE)
+**Goal:** Build an automated tracker for unvested equity, projecting future liquidity and tax implications.
 * [ ] **Step 1: Equity Engine & Database**
-  * Add `equity_grants` table to SQLite (`grant_date`, `ticker`, `total_shares`, `vesting_schedule`).
-  * Create `backend/equity_engine.py` to calculate vested vs. unvested shares.
+  * Add an `equity_grants` table to SQLite (`grant_id`, `ticker`, `grant_date`, `total_shares`, `vesting_schedule`).
+  * Create `backend/equity_engine.py` to calculate vested vs. unvested shares and estimate post-tax liquidity.
 * [ ] **Step 2: The Equity UI**
-  * Build an "Equity" module visualizing the vesting cliff. User can upload E*TRADE Excel files via the drag-and-drop zone.
+  * Build an 'Equity' tab visualizing the vesting timeline and total projected compensation.
+* [ ] **Step 3: Data Integration (Manual & CSV)**
+  * Build a manual entry form for quick grant additions.
+  * Update the Phase 4 drag-and-drop zone to accept equity export CSVs (e.g., E*TRADE) for bulk imports.
+
+### Phase 6: Retirement & Tax Strategy
+**Goal:** Track tax-advantaged accounts and forecast end-of-year tax liabilities.
+* [ ] **Step 1: 401k & HSA Tracking**
+  * Expand the database to track contribution limits, employer matches, and historical balances for retirement accounts.
+* [ ] **Step 2: Tax Liability Estimator**
+  * Build a tax engine (`backend/tax_engine.py`) to estimate Federal and Self-Employment tax burdens based on YTD income and projected business revenue, tracking estimated quarterly payments.
+
+### Phase 7: Multi-Entity Household & Business Architecture
+**Goal:** Support multi-user profiles and isolate Schedule C business deductions from household cash flow.
+* [ ] **Step 1: Multi-Profile Schema**
+  * Refactor the database to support a `users` table and an `entities` table (e.g., 'Household', 'Steven Business', 'Wife Business').
+* [ ] **Step 2: Expense Allocation Engine**
+  * Build logic to flag and split single transactions. (e.g., allocating a percentage of a phone bill to a business entity to remove it from household discretionary spending).
+* [ ] **Step 3: Entity Dashboards**
+  * Create a global 'Household View' blending W2 income, alongside isolated 'Business Views' that track deductible expenses (travel, equipment, insurance) and calculate true net business income.
 
 
 ## Phase 1.5 — Sidebar Theming (COMPLETE)
@@ -112,18 +122,64 @@ All tasks for Phase 1.5 (sidebar theming + responsive navigation) have been comp
 
 ---
 
-## Phase 2 — Backend Refactor (IN PROGRESS)
+## Phase 5.5 — Stabilization & Interactive Drill-Downs (COMPLETE, 2026-03-20)
+
+**Spec:** `docs/superpowers/specs/2026-03-17-phase-5-5-stabilization-drill-downs.md`
+**Plan:** `docs/superpowers/plans/2026-03-17-phase-5-5-stabilization-drill-downs.md`
+
+### What this adds
+- **Backend router split**: `backend/main.py` (664 lines) split into 6 `backend/routers/` modules (`dashboard`, `budget`, `equity`, `debt`, `settings`, `transactions`) + `backend/deps.py` (shared `get_db`, `DIR`, `DB_PATH`, `PERIOD_KEYS`)
+- **`GET /api/transactions`**: Filterable drill-down endpoint — `?period=`, `?type=`, `?category=`; default excludes type `I`/`X`; 9 TDD tests covering all filter combinations and edge cases
+- **`@tanstack/react-query v5`**: `QueryClientProvider` wraps app in `main.tsx`; BudgetTab and EquityTab replace manual `useEffect`/`useState` fetching with `useQuery`/`useMutation`; cache invalidation replaces refresh keys
+- **`TransactionDrawer`**: Framer Motion slide-in panel (right side, 440px); triggered by chart clicks; shows filtered transactions with row count + net sum footer
+- **`DrawerFilter` type**: `{ category?, period?, type?, label? }` in `types.ts`; period auto-injected by `openDrawer` from active period state
+- **Chart click-through**: `SpendingDonut` (type drill-down), `CategoryBar` (category drill-down, optional), `DiscretionaryBar` (type drill-down by segment)
+- **Sidebar section grouping**: Nav items grouped into Daily Ops / Wealth Building / System with fade-in section labels
+
+### Key design decisions
+- `openDrawer` uses `useCallback` over `activePeriod`; chart components only pass `{type, category, label}` — period injected automatically
+- `CategoryBar.onDrillDown` is **optional** — income sources bar (employer names ≠ transaction categories) passes no `onDrillDown`
+- React Query scope deliberately limited to BudgetTab + EquityTab; `GET /api/dashboard` stays as raw `fetch` in App.tsx (bulk payload, not per-feature)
+- `backend/deps.py` prevents circular imports — routers import from `deps`, not from `main`
+
+---
+
+## Phase 4 — FastAPI & Budget Tab (COMPLETE, 2026-03-17)
+
+**Spec/Plan:** `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-03-17 files)
+
+### What this adds
+- FastAPI app (`backend/main.py`) wrapping the engine with HTTP endpoints
+- Budget & Routing tab with gamified waterfall animations and wealth badges
+- Equity CSV bulk import (drag-and-drop zone accepting E*TRADE-format CSVs)
+
+---
+
+## Phase 2 — Backend Refactor (COMPLETE, 2026-03-16)
 
 **Goal:** Move from purely in-memory Pandas processing to a proper SQLite-backed data pipeline with strict Pydantic serialisation.
 
 ### Backend folder structure
 ```
 backend/
-  __init__.py       — makes backend a Python package
-  classify.py       — classification constants + helpers (shared source of truth)
-  models.py         — Pydantic v2 models (mirrors frontend/src/types.ts exactly)
-  database.py       — SQLite schema + init_db() factory
-  ingest.py         — CSV → SQLite ETL (build_database(); wipe-and-reload)
+  __init__.py         — makes backend a Python package
+  classify.py         — classification constants + helpers (shared source of truth)
+  models.py           — Pydantic v2 models (mirrors frontend/src/types.ts exactly)
+  database.py         — SQLite schema + init_db() factory
+  ingest.py           — CSV → SQLite ETL (build_database(); wipe-and-reload)
+  engine.py           — compute DashboardPayload from SQLite
+  debt_engine.py      — debt snowball forecaster
+  deps.py             — shared FastAPI deps: get_db(), DIR, DB_PATH, PERIOD_KEYS
+  logger.py           — structured logging helpers
+  main.py             — FastAPI app + include_router() calls (thin orchestrator)
+  routers/
+    __init__.py
+    dashboard.py      — GET /api/dashboard
+    budget.py         — GET|PUT /api/routing, GET|POST|PUT|DELETE /api/categories
+    equity.py         — GET /api/equity, POST /api/equity/grants
+    debt.py           — GET|POST /api/debt/settings
+    settings.py       — POST /api/upload/csv, GET /api/logs
+    transactions.py   — GET /api/transactions (filterable drill-down)
 ```
 
 ### Key design decisions
@@ -134,13 +190,13 @@ backend/
 - The `accounts_history` table stores month-end balance snapshots for trend charts and net-worth-over-time calculations.
 - **`backend/classify.py`** holds `NECESSITY_CATEGORIES`, `OPTIONAL_CATEGORIES`, `DEBT_CATEGORIES`, `classify()`, `is_checking()`, and `guess_interest_rate()` — extracted from the monolith so `ingest.py` and the future migrated `generate_dashboard.py` share one copy.
 - **`backend/ingest.py`** exposes `build_database(db_path, data_dir)`. It reads the single most-recent `Transactions_*.csv` and **all** `Balances_*.csv` files (full history needed for the debt trend). Run standalone: `python -m backend.ingest`.
-- **`generate_dashboard.py` is not modified yet** — Phase 2 will wire it to use these modules incrementally.
+- **`generate_dashboard.py`** is a lightweight orchestrator: Ingest → Engine → DashboardPayload.to_json() → data.json.
 
 ### Phase 2 milestones
 1. ✅ Scaffolding — `backend/` package, `models.py`, `database.py`, `requirements.txt`, venv activation in `refresh.bat`
 2. ✅ Ingest — `backend/ingest.py` + `backend/classify.py`; wipe-and-reload ETL populates SQLite from CSVs
-3. ✅ Compute — `backend/engine.py` (2026-03-16) + `generate_dashboard.py` refactored to lightweight orchestrator (2026-03-16). Full pipeline: Ingest → Engine → DashboardPayload.to_json() → data.json. Vite build verified.
-4. ✅ Validate — `frontend/scripts/validate_payload.ts` (165+ checks); `npm run validate` wired into `refresh.bat` before Vite build (2026-03-16)
+3. ✅ Compute — `backend/engine.py` + `generate_dashboard.py` refactored. Full pipeline: Ingest → Engine → DashboardPayload.to_json() → data.json.
+4. ✅ Validate — `frontend/scripts/validate_payload.ts` (165+ checks); `npm run validate` wired into `refresh.bat` before Vite build
 
 ---
 
