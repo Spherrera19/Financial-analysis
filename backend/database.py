@@ -71,6 +71,24 @@ def _migrate(conn: sqlite3.Connection) -> None:
         WHERE category IS NOT NULL AND category != ''
     """)
 
+    # v5: add retirement_accounts table (for databases predating this migration)
+    existing_tables = {
+        row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    if "retirement_accounts" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE retirement_accounts (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_name          TEXT NOT NULL,
+                account_type          TEXT NOT NULL,
+                owner                 TEXT NOT NULL,
+                annual_limit          REAL NOT NULL,
+                ytd_contributions     REAL NOT NULL DEFAULT 0.0,
+                employer_match_amount REAL,
+                employer_match_target REAL
+            )
+        """)
+
 
 def _create_tables(conn: sqlite3.Connection) -> None:
     conn.executescript("""
@@ -169,6 +187,23 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         name            TEXT    NOT NULL UNIQUE,
         monthly_budget  REAL    NOT NULL DEFAULT 0.0
+    );
+
+    -- -----------------------------------------------------------------------
+    -- retirement_accounts
+    --   Tracks tax-advantaged account contributions per person.
+    --   employer_match_amount and employer_match_target are nullable —
+    --   not all accounts have employer match programs.
+    -- -----------------------------------------------------------------------
+    CREATE TABLE IF NOT EXISTS retirement_accounts (
+        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_name          TEXT NOT NULL,
+        account_type          TEXT NOT NULL,
+        owner                 TEXT NOT NULL,
+        annual_limit          REAL NOT NULL,
+        ytd_contributions     REAL NOT NULL DEFAULT 0.0,
+        employer_match_amount REAL,
+        employer_match_target REAL
     );
     """)
 
