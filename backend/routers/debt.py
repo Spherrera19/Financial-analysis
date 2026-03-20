@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from backend.deps import get_db
+from backend.deps import get_raw_db
 from backend.debt_engine import get_apr_for_account, get_default_min_payment
 
 router = APIRouter()
@@ -25,7 +25,7 @@ class DebtSettingsUpdate(BaseModel):
 
 
 @router.get("/api/debt/settings")
-def get_debt_settings(conn: sqlite3.Connection = Depends(get_db)) -> JSONResponse:
+def get_debt_settings(conn: sqlite3.Connection = Depends(get_raw_db)) -> JSONResponse:
     """
     Return all debt accounts (ever seen as liabilities in accounts_history)
     with their current APR, minimum payment, and optional display nickname.
@@ -76,7 +76,7 @@ def get_debt_settings(conn: sqlite3.Connection = Depends(get_db)) -> JSONRespons
 @router.post("/api/debt/settings")
 def save_debt_settings(
     body: DebtSettingsUpdate,
-    conn: sqlite3.Connection = Depends(get_db),
+    conn: sqlite3.Connection = Depends(get_raw_db),
 ) -> JSONResponse:
     """
     Upsert APR and minimum payment for each account into account_terms.

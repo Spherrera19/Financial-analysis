@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from backend.deps import get_db, PERIOD_KEYS
+from backend.deps import get_raw_db, PERIOD_KEYS
 from backend.engine import (
     build_accounts, build_debt_section, build_equity_section,
     build_period, build_summary, get_period_months, get_recent_transactions,
@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.get("/api/dashboard")
-def get_dashboard(conn: sqlite3.Connection = Depends(get_db)) -> JSONResponse:
+def get_dashboard(conn: sqlite3.Connection = Depends(get_raw_db)) -> JSONResponse:
     """
     Build the full DashboardPayload from SQLite and return it as JSON.
     Assumes the database has already been populated by refresh.bat / ingest.py.

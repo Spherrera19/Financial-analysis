@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from backend.deps import get_db
+from backend.deps import get_raw_db
 from backend.engine import build_equity_section
 from backend.equity_engine import parse_brokerage_csv
 
@@ -30,7 +30,7 @@ class NewEquityGrant(BaseModel):
 @router.post("/api/equity/grants")
 def create_equity_grant(
     body: NewEquityGrant,
-    conn: sqlite3.Connection = Depends(get_db),
+    conn: sqlite3.Connection = Depends(get_raw_db),
 ) -> JSONResponse:
     """
     Insert a new equity grant into equity_grants.
@@ -61,7 +61,7 @@ def create_equity_grant(
 
 
 @router.get("/api/equity")
-def get_equity(conn: sqlite3.Connection = Depends(get_db)) -> JSONResponse:
+def get_equity(conn: sqlite3.Connection = Depends(get_raw_db)) -> JSONResponse:
     """
     Return upcoming vest events enriched with GBM price projections and
     30% tax withholding applied to all share counts.

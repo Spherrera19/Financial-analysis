@@ -9,7 +9,7 @@ import tempfile
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from backend.deps import get_db, DIR, DB_PATH
+from backend.deps import get_raw_db, DIR, DB_PATH
 from backend.equity_engine import parse_brokerage_csv
 from backend.ingest import build_database
 from backend.logger import LOG_FILE
@@ -24,7 +24,7 @@ _VALID_PREFIXES   = _FINANCE_PREFIXES + _EQUITY_PREFIXES
 @router.post("/api/upload/csv")
 async def upload_csv(
     files: list[UploadFile] = File(...),
-    conn: sqlite3.Connection = Depends(get_db),
+    conn: sqlite3.Connection = Depends(get_raw_db),
 ) -> JSONResponse:
     """
     Accept one or more CSV files and route them by filename prefix.
