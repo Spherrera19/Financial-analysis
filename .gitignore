@@ -15,3 +15,8 @@ frontend/public/data.json
 
 # Python virtual environment
 venv/
+
+# Frontend environment files (may contain API keys in future)
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
