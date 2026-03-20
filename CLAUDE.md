@@ -46,47 +46,43 @@ Note: `npx serve` is used instead of opening `index.html` directly because the `
 4. **No Dev Servers:** The final output must be buildable via `npm run build` so it can be served as a static file via `npx serve`.
 
 ## Current Objective
-* **Phase 1:** ✅ COMPLETE (2026-03-12) — React UI rebuild with data.json pipeline
-* **Phase 1.5:** ✅ COMPLETE (2026-03-14) — 5-theme system
-* **Phase 1.6:** ✅ COMPLETE (2026-03-14) — Navigation Rail (replaces hamburger/drawer)
-* **Phase 2:** ✅ COMPLETE (2026-03-16) — SQLite + Pydantic backend pipeline
-* **Phase 3 (Steps 1 & 2):** ✅ COMPLETE (2026-03-16) — Discretionary Waterfall & Debt Snowball Forecaster
-* **Phase 4:** ✅ COMPLETE (2026-03-17) — FastAPI backend wrapper + Budget & Routing tab + Equity CSV import
-* **Phase 5.5:** ✅ COMPLETE (2026-03-20) — Stabilization & Interactive Drill-Downs (backend split, React Query, TransactionDrawer, chart click-through)
-* **Phase 5:** ⏳ UPCOMING — RSU & Equity Tracking (equity engine, vesting timeline UI)
-* **Phase 6:** ⏳ UPCOMING — Retirement & Tax Strategy (401k/HSA tracking, tax liability estimator)
+* **Phase 1 to 4:** ✅ COMPLETE — (React rebuild, Themes, Nav Rail, SQLite backend, Budget Router)
+* **Phase 5:** ✅ COMPLETE (2026-03-18) — RSU & Equity Tracking (vesting UI, CSV upserts)
+* **Phase 5.5:** ✅ COMPLETE (2026-03-20) — Stabilization & Drill-Downs (backend split, React Query, TransactionDrawer)
+* **Phase 5.6:** ✅ COMPLETE (2026-03-20) — Polish Sprint (Sankey drill-down, DiscretionaryBar fix, Debt Next Target KPI)
+* **Phase 6:** 🚧 CURRENT PHASE — Retirement & Gamified Tax Strategy (Tax Shield dashboard)
 * **Phase 7:** ⏳ UPCOMING — Multi-Entity Household & Business Architecture
 
 ---
 
-## Future Roadmap: Phases 5, 6, & 7
+## Future Roadmap: Phases 6 & 7
 
-### Phase 5: RSU & Equity Tracking (CURRENT PHASE)
-**Goal:** Build an automated tracker for unvested equity, projecting future liquidity and tax implications.
-* [ ] **Step 1: Equity Engine & Database**
-  * Add an `equity_grants` table to SQLite (`grant_id`, `ticker`, `grant_date`, `total_shares`, `vesting_schedule`).
-  * Create `backend/equity_engine.py` to calculate vested vs. unvested shares and estimate post-tax liquidity.
-* [ ] **Step 2: The Equity UI**
-  * Build an 'Equity' tab visualizing the vesting timeline and total projected compensation.
-* [ ] **Step 3: Data Integration (Manual & CSV)**
-  * Build a manual entry form for quick grant additions.
-  * Update the Phase 4 drag-and-drop zone to accept equity export CSVs (e.g., E*TRADE) for bulk imports.
-
-### Phase 6: Retirement & Tax Strategy
-**Goal:** Track tax-advantaged accounts and forecast end-of-year tax liabilities.
-* [ ] **Step 1: 401k & HSA Tracking**
-  * Expand the database to track contribution limits, employer matches, and historical balances for retirement accounts.
+### Phase 6: Retirement & Gamified Tax Strategy (CURRENT PHASE)
+**Goal:** Track tax-advantaged accounts and forecast end-of-year tax liabilities using gamified pacing mechanics.
+* [ ] **Step 1: The Tax Shield Dashboard**
+  * Expand database to track contribution limits, employer matches, and YTD contributions (`retirement_accounts`).
+  * Build a Gamified UI: Include the 'Ghost Car' target pacer, 'Free Money' match checkpoints, and a global 'Tax Shield' score estimating taxes saved.
 * [ ] **Step 2: Tax Liability Estimator**
   * Build a tax engine (`backend/tax_engine.py`) to estimate Federal and Self-Employment tax burdens based on YTD income and projected business revenue, tracking estimated quarterly payments.
 
 ### Phase 7: Multi-Entity Household & Business Architecture
-**Goal:** Support multi-user profiles and isolate Schedule C business deductions from household cash flow.
+**Goal:** Support multi-user profiles and isolate Schedule C business deductions (like the Photography/Wedding business) from household cash flow.
 * [ ] **Step 1: Multi-Profile Schema**
   * Refactor the database to support a `users` table and an `entities` table (e.g., 'Household', 'Steven Business', 'Wife Business').
 * [ ] **Step 2: Expense Allocation Engine**
-  * Build logic to flag and split single transactions. (e.g., allocating a percentage of a phone bill to a business entity to remove it from household discretionary spending).
-* [ ] **Step 3: Entity Dashboards**
-  * Create a global 'Household View' blending W2 income, alongside isolated 'Business Views' that track deductible expenses (travel, equipment, insurance) and calculate true net business income.
+  * Build logic to flag and split single transactions (e.g., allocating a percentage of a phone bill to a business entity).
+* [ ] **Step 3: Multi-Year Invoice & Event Tracking**
+  * Build an invoice tracker for business events (e.g., Weddings) that handles split payments spanning across multiple tax years (initial deposit Year 1, final payment Year 2).
+* [ ] **Step 4: Entity Dashboards**
+  * Create a global 'Household View' blending W2 income, alongside isolated 'Business Views' that calculate true net business income.
+
+---
+
+## Phase 5.6 — UX Polish Sprint (COMPLETE, 2026-03-20)
+### What this adds
+- **DiscretionaryBar Fix:** Replaced semi-transparent missing colors with solid Tailwind slate for high visibility.
+- **Sankey Drill-Down:** Wired the FlowChart to the `TransactionDrawer`. Clicking a node (e.g., 'Groceries') or bucket (e.g., 'Necessities') opens the exact underlying transactions.
+- **Debt Gamification:** Added a dynamic '🎯 Next Payoff Target' KPI banner to the Debt Tab that dictates exactly which account to attack next based on the active Avalanche/Snowball strategy.
 
 
 ## Phase 1.5 — Sidebar Theming (COMPLETE)
