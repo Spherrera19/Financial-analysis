@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 import traceback
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,13 +19,20 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from backend.logger import get_logger
+from backend.database import create_db_tables
 
 log = get_logger("api")
 
 from backend.routers import dashboard, budget, equity, debt, settings as settings_router, transactions, retirement
 
 
-app = FastAPI(title="Finance Dashboard API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_tables()          # create all SQLModel tables before first request
+    yield
+
+
+app = FastAPI(title="Finance Dashboard API", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
