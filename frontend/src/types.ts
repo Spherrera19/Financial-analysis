@@ -128,7 +128,7 @@ export interface EquitySection {
   upcoming_vests:         EquityVestSummary[];
 }
 
-export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions' | 'settings' | 'equity' | 'budget';
+export type TabKey = 'overview' | 'cashflow' | 'spending' | 'debt' | 'transactions' | 'settings' | 'equity' | 'budget' | 'tax';
 
 // ── Drill-down drawer (Phase 5.5) ────────────────────────────────────────────
 // Placed here (not in a local component file) so App.tsx, tab components, and
@@ -139,4 +139,29 @@ export interface DrawerFilter {
   period?:   PeriodKey; // e.g. "current" — maps to date range via backend get_period_months()
   type?:     string;    // e.g. "O" — transaction type code (N, O, D, I, T, X)
   label?:    string;    // display-only: shown in the drawer header, never sent to the API
+}
+
+// ── Retirement / Tax Shield (Phase 6) ────────────────────────────────────────
+
+export interface RetirementAccount {
+  id:                    number;
+  account_name:          string;
+  account_type:          string;   // '401k' | 'HSA' | 'Roth IRA' | etc.
+  owner:                 string;   // 'Steven' | 'Wife'
+  annual_limit:          number;
+  ytd_contributions:     number;
+  employer_match_amount: number | null;
+  employer_match_target: number | null;
+}
+
+export type RetirementCreate = Omit<RetirementAccount, 'id'>;
+
+export interface RetirementUpdate {
+  account_name?:          string;
+  account_type?:          string;
+  owner?:                 string;
+  annual_limit?:          number;
+  ytd_contributions?:     number;
+  employer_match_amount?: number | null;
+  employer_match_target?: number | null;
 }

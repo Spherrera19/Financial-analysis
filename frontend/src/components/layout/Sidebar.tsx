@@ -8,6 +8,7 @@ import {
   Settings,
   BarChart2,
   Landmark,
+  ShieldCheck,
 } from 'lucide-react';
 import type { TabKey } from '../../types';
 
@@ -30,6 +31,7 @@ const NAV_ITEMS: {
   { id: 'transactions',  label: 'Transactions',   icon: Receipt,         section: 'Daily Ops' },
   { id: 'debt',          label: 'Debt',           icon: CreditCard,      section: 'Wealth Building' },
   { id: 'equity',        label: 'Equity',         icon: BarChart2,       section: 'Wealth Building' },
+  { id: 'tax',           label: 'Tax & Retirement', icon: ShieldCheck,    section: 'Wealth Building' },
   { id: 'settings',      label: 'Settings',       icon: Settings,        section: 'System' },
 ];
 
