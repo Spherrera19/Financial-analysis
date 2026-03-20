@@ -5,7 +5,7 @@ import type { RetirementAccount } from '../types';
 import { RetirementCard } from '../components/cards/RetirementCard';
 import { RetirementModal } from '../components/modals/RetirementModal';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const MARGINAL_RATE = 0.24; // Federal marginal tax rate assumption for tax shield estimate
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

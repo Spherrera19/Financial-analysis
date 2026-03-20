@@ -4,7 +4,7 @@ import { SankeyChart, DiscretionaryBar } from '../components/charts';
 import { AccountList } from '../components/tables';
 import type { DashboardPayload, DrawerFilter, EquitySection, PeriodKey } from '../types';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 function fmt(n: number): string {
   const abs = Math.abs(n);

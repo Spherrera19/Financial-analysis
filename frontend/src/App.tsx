@@ -87,7 +87,7 @@ export default function App() {
   const refreshData = () => {
     setLoading(true);
     setError(null);
-    fetch('http://localhost:8000/api/dashboard')
+    fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/dashboard`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

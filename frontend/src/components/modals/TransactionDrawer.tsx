@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import type { DrawerFilter } from '../../types'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 const TYPE_LABELS: Record<string, string> = {
   N: 'Necessities', O: 'Optional', D: 'Debt',
