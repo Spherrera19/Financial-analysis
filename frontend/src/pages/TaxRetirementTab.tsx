@@ -19,7 +19,11 @@ function fmt(n: number): string {
 export default function TaxRetirementTab() {
   const { data: accounts = [], isLoading, error, refetch } = useQuery<RetirementAccount[]>({
     queryKey: ['retirement'],
-    queryFn: () => fetch(`${API}/api/retirement`).then(r => r.json()),
+    queryFn: () => fetch(`${API}/api/retirement`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
   });
 
   // null = closed | 'new' = create mode | RetirementAccount = edit mode

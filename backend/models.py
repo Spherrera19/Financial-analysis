@@ -219,7 +219,7 @@ class RetirementCreate(BaseModel):
     account_name:          str
     account_type:          str
     owner:                 str
-    annual_limit:          float
+    annual_limit:          float = Field(..., gt=0)
     ytd_contributions:     float = 0.0
     employer_match_amount: float | None = None
     employer_match_target: float | None = None
@@ -229,7 +229,7 @@ class RetirementUpdate(BaseModel):
     account_name:          str   | None = None
     account_type:          str   | None = None
     owner:                 str   | None = None
-    annual_limit:          float | None = None
+    annual_limit:          float | None = Field(None, gt=0)
     ytd_contributions:     float | None = None
     employer_match_amount: float | None = None
     employer_match_target: float | None = None

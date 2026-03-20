@@ -70,7 +70,10 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error(e.detail ?? `HTTP ${r.status}`)));
+        return r.json();
+      }),
     onSuccess: () => { onSaved(); onClose(); },
   });
 
@@ -80,13 +83,19 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error(e.detail ?? `HTTP ${r.status}`)));
+        return r.json();
+      }),
     onSuccess: () => { onSaved(); onClose(); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () =>
-      fetch(`${API}/api/retirement/${account!.id}`, { method: 'DELETE' }),
+      fetch(`${API}/api/retirement/${account!.id}`, { method: 'DELETE' })
+      .then(r => {
+        if (!r.ok) return r.text().then(t => Promise.reject(new Error(t || `HTTP ${r.status}`)));
+      }),
     onSuccess: () => { onSaved(); onClose(); },
   });
 
@@ -184,7 +193,7 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
 
           <div style={FIELD}>
             <label style={LABEL}>Annual Limit ($)</label>
-            <input style={INPUT} type="number" min={0} step={1} value={form.annual_limit}
+            <input style={INPUT} type="number" min={1} step={1} value={form.annual_limit}
               onChange={e => set('annual_limit', e.target.value)} required />
           </div>
 

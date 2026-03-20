@@ -26,6 +26,10 @@ interface RetirementCardProps {
 
 export function RetirementCard({ account, onEdit }: RetirementCardProps) {
   const now = new Date();
+
+  // Guard against division by zero (annual_limit validated as > 0 in backend, but defensive)
+  if (account.annual_limit <= 0) return null;
+
   const dayOfYear = getDayOfYear(now);
   const daysInYear = isLeapYear(now.getFullYear()) ? 366 : 365;
   const targetPace = (dayOfYear / daysInYear) * account.annual_limit;
