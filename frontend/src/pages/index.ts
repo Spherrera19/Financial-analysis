@@ -6,3 +6,4 @@ export { TransactionsTab } from './TransactionsTab';
 export { SettingsTab } from './SettingsTab';
 export { EquityTab } from './EquityTab';
 export { BudgetTab } from './BudgetTab';
+export { default as TaxRetirementTab } from './TaxRetirementTab';

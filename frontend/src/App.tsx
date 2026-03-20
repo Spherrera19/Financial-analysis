@@ -14,6 +14,7 @@ import {
   SettingsTab,
   EquityTab,
   BudgetTab,
+  TaxRetirementTab,
 } from './pages';
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
@@ -125,6 +126,7 @@ export default function App() {
       case 'transactions': return <TransactionsTab data={data} activePeriod={activePeriod} />;
       case 'equity':       return null; // handled in pre-guard chain
       case 'budget':       return null; // handled in pre-guard chain
+      case 'tax':          return null; // handled in pre-guard chain
       case 'settings':     return null; // handled in pre-guard chain
     }
   };
@@ -160,6 +162,10 @@ export default function App() {
         ) : activeTab === 'budget' ? (
           <div style={{ padding: '1.5rem' }}>
             <BudgetTab onDrillDown={openDrawer} />
+          </div>
+        ) : activeTab === 'tax' ? (
+          <div style={{ padding: '1.5rem' }}>
+            <TaxRetirementTab />
           </div>
         ) : (
           <>
