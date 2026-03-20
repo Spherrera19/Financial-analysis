@@ -55,7 +55,7 @@ export function DiscretionaryBar({ waterfall, onDrillDown }: DiscretionaryBarPro
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
         <span className="flex items-center gap-1">
-          <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: 'var(--color-text-muted)', display: 'inline-block', opacity: 0.5 }} />
+          <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#64748b', display: 'inline-block' }} />
           Necessary
         </span>
         <span className="flex items-center gap-1">
@@ -85,8 +85,7 @@ export function DiscretionaryBar({ waterfall, onDrillDown }: DiscretionaryBarPro
           onClick={() => onDrillDown({ type: 'N', label: 'Necessities' })}
           style={{
             width: w(necessary_spending),
-            backgroundColor: 'var(--color-text-muted)',
-            opacity: 0.45,
+            backgroundColor: '#64748b',
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',

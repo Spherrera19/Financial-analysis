@@ -3,7 +3,7 @@ import Chart from 'chart.js/auto';
 import { KpiCard, CollapsibleCard } from '../components/cards';
 import { DebtTrendLine } from '../components/charts';
 import { AccountList } from '../components/tables';
-import type { DashboardPayload, DebtProjection, PayoffScenario } from '../types';
+import type { DashboardPayload, DebtAccount, DebtProjection, PayoffScenario } from '../types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -86,9 +86,10 @@ function PayoffSparkline({ balances, color }: SparklineProps) {
 
 interface PayoffForecasterProps {
   projection: DebtProjection;
+  accounts:   DebtAccount[];
 }
 
-function PayoffForecaster({ projection }: PayoffForecasterProps) {
+function PayoffForecaster({ projection, accounts }: PayoffForecasterProps) {
   const [strategy, setStrategy] = useState<'snowball' | 'avalanche'>('snowball');
 
   const active: PayoffScenario = projection[strategy];
@@ -101,6 +102,16 @@ function PayoffForecaster({ projection }: PayoffForecasterProps) {
   const interestDiff = active.total_interest_paid - other.total_interest_paid;
   const savingsAmount = Math.abs(interestDiff);
   const otherSavesMore = interestDiff > 1;    // switching would save money
+
+  const nextTarget = useMemo<DebtAccount | null>(() => {
+    const active = accounts.filter(a => Math.abs(a.balance) > 0);
+    if (active.length === 0) return null;
+    if (strategy === 'snowball') {
+      return active.reduce((min, a) => Math.abs(a.balance) < Math.abs(min.balance) ? a : min);
+    } else {
+      return active.reduce((max, a) => a.rate > max.rate ? a : max);
+    }
+  }, [accounts, strategy]);
 
   const toggleStyle = (s: 'snowball' | 'avalanche') => ({
     padding: '0.35rem 0.9rem',
@@ -189,6 +200,41 @@ function PayoffForecaster({ projection }: PayoffForecasterProps) {
         </div>
       )}
 
+      {/* Next Payoff Target */}
+      {nextTarget && (
+        <div style={{
+          marginBottom: '1.25rem',
+          padding: '0.875rem 1rem',
+          borderRadius: '0.625rem',
+          background: 'linear-gradient(135deg, var(--accent, #6366f1) 0%, #8b5cf6 100%)',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+        }}>
+          <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>🎯</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.8, marginBottom: '0.2rem' }}>
+              Next Payoff Target
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {nextTarget.name} &bull; {fmt(Math.abs(nextTarget.balance))} remaining
+            </div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.85, marginTop: '0.15rem' }}>
+              Focus all extra cash here until cleared.
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: '0.6875rem', opacity: 0.8 }}>
+              {strategy === 'snowball' ? 'Lowest balance' : 'Highest rate'}
+            </div>
+            <div style={{ fontSize: '0.875rem', fontWeight: 700 }}>
+              {(nextTarget.rate * 100).toFixed(1)}% APR
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Balance sparkline */}
       <div style={{ height: '160px' }}>
         <PayoffSparkline
@@ -219,7 +265,7 @@ function DebtTab({ data }: DebtTabProps) {
     <div style={{ padding: '1.5rem' }}>
       {/* Payoff Forecaster — top of tab */}
       <div style={{ marginBottom: '1rem' }}>
-        <PayoffForecaster projection={data.debt.projection} />
+        <PayoffForecaster projection={data.debt.projection} accounts={data.debt.accounts} />
       </div>
 
       {/* KPI Row */}

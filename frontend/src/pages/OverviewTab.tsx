@@ -92,7 +92,7 @@ function OverviewTab({ data, activePeriod, onDrillDown }: OverviewTabProps) {
       {/* Sankey Chart */}
       <div style={{ marginBottom: '1rem' }}>
         <CollapsibleCard title="Money Flow — Income Sources to Spending">
-          <SankeyChart flows={period.sankey} />
+          <SankeyChart flows={period.sankey} onDrillDown={onDrillDown} />
         </CollapsibleCard>
       </div>
 
