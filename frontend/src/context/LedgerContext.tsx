@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Ledger } from '../types';
+import { useUser } from './UserContext';
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -13,17 +14,23 @@ interface LedgerContextValue {
 const LedgerContext = createContext<LedgerContextValue | null>(null);
 
 export function LedgerProvider({ children }: { children: ReactNode }) {
+  const { activeUserId } = useUser();
   const [selectedLedgerId, setSelectedLedgerId] = useState<number | null>(null);
 
   const { data: ledgers = [] } = useQuery<Ledger[]>({
-    queryKey: ['ledgers'],
+    queryKey: ['ledgers', activeUserId],
     queryFn: () =>
-      fetch(`${API}/api/ledgers?user_id=1`)
+      fetch(`${API}/api/ledgers?user_id=${activeUserId}`)
         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
-    staleTime: 5 * 60_000, // ledger list changes rarely
+    staleTime: 5 * 60_000,
   });
 
-  // Auto-select the Household ledger once data arrives
+  // Reset ledger selection when user changes
+  useEffect(() => {
+    setSelectedLedgerId(null);
+  }, [activeUserId]);
+
+  // Auto-select Household (or first) ledger when ledgers load
   useEffect(() => {
     if (ledgers.length > 0 && selectedLedgerId === null) {
       const household = ledgers.find(l => l.name === 'Household');
