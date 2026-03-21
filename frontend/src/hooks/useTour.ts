@@ -14,21 +14,23 @@ export interface TourState {
 export function useTour() {
   const { activeUserId } = useUser();
 
-  // On mount, check if the basic tour has been seen for this user.
-  // Auto-start basic tour if not seen yet.
   const [activeTour, setActiveTour] = useState<TourType | null>(() => {
     const basicKey = tourKey('basic', activeUserId);
     return localStorage.getItem(basicKey) !== 'true' ? 'basic' : null;
   });
 
+  const [stepIndex, setStepIndex] = useState(0);
+
   const finishTour = useCallback((type: TourType) => {
     localStorage.setItem(tourKey(type, activeUserId), 'true');
     setActiveTour(null);
+    setStepIndex(0);
   }, [activeUserId]);
 
   const startTour = useCallback((type: TourType) => {
+    setStepIndex(0);
     setActiveTour(type);
   }, []);
 
-  return { activeTour, finishTour, startTour };
+  return { activeTour, finishTour, startTour, stepIndex, setStepIndex };
 }
