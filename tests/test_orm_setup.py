@@ -8,6 +8,8 @@ import backend.models  # noqa: F401
 EXPECTED_TABLES = {
     "retirement_accounts", "routing_targets", "categories",
     "accounts_history", "account_terms", "transactions", "equity_grants",
+    "userprofile", "incomesource",
+    "ledger", "ledgeraccess", "ledgertransfer", "notification",
 }
 
 

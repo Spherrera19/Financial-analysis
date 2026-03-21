@@ -15,7 +15,7 @@ router = APIRouter()
 def list_retirement_accounts(session: Session = Depends(get_db)) -> JSONResponse:
     """Return all retirement accounts ordered by owner, then account_type."""
     accounts = session.exec(
-        select(RetirementAccount).order_by(RetirementAccount.owner, RetirementAccount.account_type)
+        select(RetirementAccount).order_by(RetirementAccount.ledger_id, RetirementAccount.account_type)
     ).all()
     return JSONResponse(content=[a.model_dump() for a in accounts])
 
@@ -29,7 +29,7 @@ def create_retirement_account(
     account = RetirementAccount(
         account_name=body.account_name,
         account_type=body.account_type,
-        owner=body.owner,
+        ledger_id=body.ledger_id,
         annual_limit=body.annual_limit,
         ytd_contributions=body.ytd_contributions,
         employer_match_amount=body.employer_match_amount,

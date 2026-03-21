@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from backend.deps import get_raw_db, PERIOD_KEYS
@@ -19,19 +19,24 @@ router = APIRouter()
 
 
 @router.get("/api/dashboard")
-def get_dashboard(conn: sqlite3.Connection = Depends(get_raw_db)) -> JSONResponse:
+def get_dashboard(
+    ledger_id: int | None = Query(default=None, description="Filter data to a specific ledger workspace. Omit for unscoped (all-ledger) view."),
+    conn: sqlite3.Connection = Depends(get_raw_db),
+) -> JSONResponse:
     """
     Build the full DashboardPayload from SQLite and return it as JSON.
     Assumes the database has already been populated by refresh.bat / ingest.py.
     model_dump(by_alias=True) ensures SankeyFlow emits 'from' not 'from_',
     matching the TypeScript contract.
+
+    Pass ?ledger_id=<id> to scope analytics to a single ledger workspace.
     """
     summary  = build_summary(conn)
     accounts = build_accounts(conn)
     debt     = build_debt_section(conn)
-    txs      = get_recent_transactions(conn)
+    txs      = get_recent_transactions(conn, ledger_id=ledger_id)
     periods: dict[PeriodKey, object] = {
-        pk: build_period(conn, pk) for pk in PERIOD_KEYS
+        pk: build_period(conn, pk, ledger_id=ledger_id) for pk in PERIOD_KEYS
     }
 
     assets_dicts      = [a.model_dump() for a in accounts if a.balance >= 0]

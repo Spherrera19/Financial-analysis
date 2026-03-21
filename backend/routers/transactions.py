@@ -20,9 +20,10 @@ router = APIRouter()
 
 @router.get("/api/transactions")
 def list_transactions(
-    period:   str | None = Query(default=None),
-    category: str | None = Query(default=None),
-    type:     str | None = Query(default=None, alias="type"),
+    period:    str | None = Query(default=None),
+    category:  str | None = Query(default=None),
+    type:      str | None = Query(default=None, alias="type"),
+    ledger_id: int | None = Query(default=None, description="Scope results to a specific ledger workspace."),
     session: Session = Depends(get_db),
 ) -> JSONResponse:
     """
@@ -30,6 +31,7 @@ def list_transactions(
 
     When `type` is provided the caller's intent is explicit — the default
     exclusion of income (I) and transfers (X) is suppressed.
+    Pass ?ledger_id=<id> to restrict results to one ledger workspace.
     """
     type_ = type  # noqa: A001
 
@@ -58,6 +60,11 @@ def list_transactions(
     if type_ is not None:
         clauses.append("type = :type_val")
         params["type_val"] = type_
+
+    # Ledger filter: ledger_id is always bound as a named parameter, never string-interpolated.
+    if ledger_id is not None:
+        clauses.append("ledger_id = :ledger_id")
+        params["ledger_id"] = ledger_id
 
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
 

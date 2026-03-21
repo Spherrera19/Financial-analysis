@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Theme } from '../lib/theme';
+import type { UserProfile, Ledger } from '../types';
+import { ShareLedgerModal } from '../components/modals/ShareLedgerModal';
 
 interface SettingsTabProps {
   activeTheme: Theme;
@@ -189,6 +192,319 @@ function DataImportSection({ onRefresh, onError }: { onRefresh: () => void; onEr
 }
 
 // ---------------------------------------------------------------------------
+// Household Members section
+// ---------------------------------------------------------------------------
+
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+function HouseholdMembersSection() {
+  const queryClient = useQueryClient();
+  const [editingId, setEditingId]   = useState<number | null>(null);
+  const [editName, setEditName]     = useState('');
+  const [saveError, setSaveError]   = useState<string | null>(null);
+
+  const { data: profiles = [], isLoading } = useQuery<UserProfile[]>({
+    queryKey: ['profiles'],
+    queryFn: () => fetch(`${API}/api/profiles`).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }),
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      fetch(`${API}/api/profiles/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }).then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error(e.detail ?? `HTTP ${r.status}`)));
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      setEditingId(null);
+      setSaveError(null);
+    },
+    onError: (e: Error) => setSaveError(e.message),
+  });
+
+  const openEdit = (profile: UserProfile) => {
+    setEditingId(profile.id);
+    setEditName(profile.name);
+    setSaveError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setSaveError(null);
+  };
+
+  if (isLoading) {
+    return <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading members…</p>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {profiles.map(profile => (
+        <div
+          key={profile.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            padding: '1rem 1.25rem',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
+          }}
+        >
+          {/* Avatar initial */}
+          <div style={{
+            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+            background: 'var(--accent-blue)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1rem', fontWeight: 700, color: '#fff',
+          }}>
+            {profile.name.charAt(0).toUpperCase()}
+          </div>
+
+          {/* Name / edit field */}
+          <div style={{ flex: 1 }}>
+            {editingId === profile.id ? (
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  autoFocus
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') renameMutation.mutate({ id: profile.id, name: editName });
+                    if (e.key === 'Escape') cancelEdit();
+                  }}
+                  style={{
+                    padding: '0.375rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--accent-blue)',
+                    background: 'var(--bg-base)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9375rem',
+                    outline: 'none',
+                    width: 160,
+                  }}
+                />
+                <button
+                  onClick={() => renameMutation.mutate({ id: profile.id, name: editName })}
+                  disabled={renameMutation.isPending || !editName.trim()}
+                  style={{
+                    padding: '0.375rem 0.875rem',
+                    borderRadius: '0.375rem',
+                    border: 'none',
+                    background: 'var(--accent-blue)',
+                    color: '#fff',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    cursor: renameMutation.isPending ? 'not-allowed' : 'pointer',
+                    opacity: renameMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  {renameMutation.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.8125rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                {saveError && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }}>{saveError}</span>
+                )}
+              </div>
+            ) : (
+              <div>
+                <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {profile.name}
+                </span>
+                {profile.is_primary && (
+                  <span style={{
+                    marginLeft: '0.5rem',
+                    fontSize: '0.6875rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    padding: '0.125rem 0.5rem',
+                    borderRadius: '0.25rem',
+                    background: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)',
+                    color: 'var(--accent-blue)',
+                  }}>
+                    Primary
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Edit button */}
+          {editingId !== profile.id && (
+            <button
+              onClick={() => openEdit(profile)}
+              style={{
+                padding: '0.375rem 0.875rem',
+                borderRadius: '0.375rem',
+                border: '1px solid var(--border-subtle)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Workspace Access section
+// ---------------------------------------------------------------------------
+
+function WorkspaceAccessSection({ profiles }: { profiles: UserProfile[] }) {
+  const [selectedLedger, setSelectedLedger] = useState<{ id: number; name: string } | null>(null);
+  const [isModalOpen, setIsModalOpen]       = useState(false);
+
+  const { data: ledgers = [], isLoading } = useQuery<Ledger[]>({
+    queryKey: ['ledgers'],
+    queryFn: () => fetch(`${API}/api/ledgers?user_id=1`).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }),
+  });
+
+  const typeBadgeStyle = (type: Ledger['type']): React.CSSProperties => {
+    const map: Record<string, [string, string]> = {
+      joint:    ['var(--accent-blue)',  'color-mix(in srgb, var(--accent-blue)  12%, transparent)'],
+      personal: ['var(--accent-green)', 'color-mix(in srgb, var(--accent-green) 12%, transparent)'],
+      business: ['#a855f7',             'color-mix(in srgb, #a855f7 12%, transparent)'],
+    };
+    const [color, bg] = map[type] ?? ['var(--text-muted)', 'transparent'];
+    return {
+      fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.04em',
+      textTransform: 'uppercase', padding: '0.125rem 0.5rem',
+      borderRadius: '0.25rem', background: bg, color,
+    };
+  };
+
+  const roleBadgeStyle = (role: string): React.CSSProperties => {
+    const isAdmin = role === 'admin';
+    return {
+      fontSize: '0.6875rem', fontWeight: 600,
+      padding: '0.125rem 0.4rem', borderRadius: '0.25rem',
+      background: isAdmin
+        ? 'color-mix(in srgb, #f59e0b 15%, transparent)'
+        : 'color-mix(in srgb, var(--text-muted) 15%, transparent)',
+      color: isAdmin ? '#f59e0b' : 'var(--text-muted)',
+    };
+  };
+
+  if (isLoading) {
+    return <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Loading workspaces…</p>;
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {ledgers.map(ledger => (
+          <div
+            key={ledger.id}
+            style={{
+              padding: '1rem 1.25rem',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-surface)',
+            }}
+          >
+            {/* Card header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {ledger.name}
+                </span>
+                <span style={typeBadgeStyle(ledger.type)}>{ledger.type}</span>
+              </div>
+              <button
+                onClick={() => { setSelectedLedger({ id: ledger.id, name: ledger.name }); setIsModalOpen(true); }}
+                style={{
+                  padding: '0.375rem 0.875rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                Manage Access
+              </button>
+            </div>
+
+            {/* Members list */}
+            {ledger.members.length === 0 ? (
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>No members yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {ledger.members.map(member => (
+                  <div
+                    key={member.user_id}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}
+                  >
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                      background: 'var(--accent-blue)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.75rem', fontWeight: 700, color: '#fff',
+                    }}>
+                      {member.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', flex: 1 }}>
+                      {member.name}
+                    </span>
+                    <span style={roleBadgeStyle(member.role)}>
+                      {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <ShareLedgerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        ledgerId={selectedLedger?.id ?? 0}
+        ledgerName={selectedLedger?.name ?? ''}
+        profiles={profiles}
+      />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Theme section
 // ---------------------------------------------------------------------------
 
@@ -218,8 +534,6 @@ interface DebtTermEntry {
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // ---------------------------------------------------------------------------
 // Institution parser
@@ -792,6 +1106,16 @@ function SystemLogsSection() {
 export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsTabProps) {
   const [globalErrors, setGlobalErrors] = useState<string[]>([]);
 
+  // Fetched here so WorkspaceAccessSection can receive profiles without a second request
+  // (React Query deduplicates: HouseholdMembersSection uses the same queryKey)
+  const { data: profiles = [] } = useQuery<UserProfile[]>({
+    queryKey: ['profiles'],
+    queryFn: () => fetch(`${API}/api/profiles`).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }),
+  });
+
   const addError = useCallback((msg: string) => {
     console.error('[SettingsTab]', msg);
     setGlobalErrors(prev => [...prev, msg]);
@@ -839,6 +1163,25 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsT
           >✕</button>
         </div>
       )}
+
+      {/* ── Household Members ── */}
+      <h2 style={sectionHeader}>Household Members</h2>
+      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+        Rename household members. These profiles link to retirement accounts and income sources.
+      </p>
+      <HouseholdMembersSection />
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
+
+      {/* ── Workspace Access ── */}
+      <h2 style={sectionHeader}>Workspace Access</h2>
+      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+        Manage which household members have access to each financial workspace. Admins can
+        edit data; Viewers can only read.
+      </p>
+      <WorkspaceAccessSection profiles={profiles} />
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
       {/* ── Data Import ── */}
       <h2 style={sectionHeader}>Data Import</h2>

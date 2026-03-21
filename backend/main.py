@@ -23,7 +23,7 @@ from backend.database import create_db_tables
 
 log = get_logger("api")
 
-from backend.routers import dashboard, budget, equity, debt, settings as settings_router, transactions, retirement
+from backend.routers import dashboard, budget, equity, debt, settings as settings_router, transactions, retirement, tax, profiles, incomes, ledgers
 
 
 @asynccontextmanager
@@ -100,3 +100,7 @@ app.include_router(debt.router)
 app.include_router(settings_router.router)
 app.include_router(transactions.router)
 app.include_router(retirement.router)
+app.include_router(tax.router)
+app.include_router(profiles.router)
+app.include_router(incomes.router)
+app.include_router(ledgers.router)

@@ -43,12 +43,12 @@ def test_retirement_accounts_table_exists():
 
 
 def test_retirement_accounts_columns():
-    """retirement_accounts has the expected columns."""
+    """retirement_accounts has the expected columns (owner/user_id replaced by ledger_id FK)."""
     test_engine = create_engine("sqlite:///:memory:", poolclass=StaticPool)
     SQLModel.metadata.create_all(test_engine)
     cols = {c["name"] for c in inspect(test_engine).get_columns("retirement_accounts")}
     expected = {
-        "id", "account_name", "account_type", "owner",
+        "id", "account_name", "account_type", "ledger_id",
         "annual_limit", "ytd_contributions",
         "employer_match_amount", "employer_match_target",
     }
@@ -62,7 +62,7 @@ def _seed_account(client, **overrides):
     payload = {
         "account_name": "Steven 401k",
         "account_type": "401k",
-        "owner": "Steven",
+        "ledger_id": None,
         "annual_limit": 23000.0,
         "ytd_contributions": 5000.0,
         "employer_match_amount": None,
@@ -83,30 +83,31 @@ def test_get_empty_list(client):
     assert r.json() == []
 
 
-def test_get_returns_accounts_ordered_by_owner_then_type(client):
-    """GET returns accounts ordered by owner ASC, account_type ASC."""
-    _seed_account(client, owner="Wife",   account_type="HSA",      account_name="Wife HSA")
-    _seed_account(client, owner="Steven", account_type="Roth IRA", account_name="Steven Roth")
-    _seed_account(client, owner="Steven", account_type="401k",     account_name="Steven 401k")
+def test_get_returns_accounts_ordered_by_ledger_id_then_type(client):
+    """GET returns accounts ordered by ledger_id ASC, account_type ASC."""
+    # ledger_id=2 seeded first to verify ordering is by ledger_id not insertion order
+    _seed_account(client, ledger_id=2, account_type="HSA",      account_name="Wife HSA")
+    _seed_account(client, ledger_id=1, account_type="Roth IRA", account_name="Steven Roth")
+    _seed_account(client, ledger_id=1, account_type="401k",     account_name="Steven 401k")
 
     r = client.get("/api/retirement")
     assert r.status_code == 200
     rows = r.json()
     assert len(rows) == 3
-    # Steven comes before Wife alphabetically
-    assert rows[0]["owner"] == "Steven"
-    assert rows[0]["account_type"] == "401k"   # 401k before Roth IRA
+    # ledger_id=1 (lower) comes first
+    assert rows[0]["ledger_id"] == 1
+    assert rows[0]["account_type"] == "401k"   # 401k before Roth IRA alphabetically
     assert rows[1]["account_type"] == "Roth IRA"
-    assert rows[2]["owner"] == "Wife"
+    assert rows[2]["ledger_id"] == 2
 
 
 def test_get_response_shape(client):
-    """Each item has all expected fields."""
+    """Each item has all expected fields (user_id replaced by ledger_id)."""
     _seed_account(client, employer_match_target=5750.0, employer_match_amount=1200.0)
     r = client.get("/api/retirement")
     row = r.json()[0]
     expected_keys = {
-        "id", "account_name", "account_type", "owner",
+        "id", "account_name", "account_type", "ledger_id",
         "annual_limit", "ytd_contributions",
         "employer_match_amount", "employer_match_target",
     }
@@ -122,7 +123,6 @@ def test_post_creates_account(client):
     r = client.post("/api/retirement", json={
         "account_name": "HSA",
         "account_type": "HSA",
-        "owner": "Wife",
         "annual_limit": 4150.0,
         "ytd_contributions": 0.0,
     })

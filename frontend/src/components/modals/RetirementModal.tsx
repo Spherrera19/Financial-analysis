@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
-import type { RetirementAccount, RetirementCreate, RetirementUpdate } from '../../types';
+import type { RetirementAccount, RetirementCreate, RetirementUpdate, UserProfile } from '../../types';
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -14,20 +14,22 @@ const FIELD = 'mb-4';
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface RetirementModalProps {
-  account: RetirementAccount | null;  // null = create mode
-  onClose: () => void;
-  onSaved: () => void;
+  account:  RetirementAccount | null;  // null = create mode
+  profiles: UserProfile[];
+  onClose:  () => void;
+  onSaved:  () => void;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function RetirementModal({ account, onClose, onSaved }: RetirementModalProps) {
+export function RetirementModal({ account, profiles, onClose, onSaved }: RetirementModalProps) {
   const isEdit = account !== null;
+  const defaultUserId = profiles.find(p => p.is_primary)?.id ?? profiles[0]?.id ?? 1;
 
   const [form, setForm] = useState({
     account_name:          account?.account_name          ?? '',
     account_type:          account?.account_type          ?? '401k',
-    owner:                 account?.owner                 ?? 'Steven',
+    user_id:               String(account?.user_id ?? defaultUserId),
     annual_limit:          String(account?.annual_limit          ?? ''),
     ytd_contributions:     String(account?.ytd_contributions     ?? '0'),
     employer_match_amount: String(account?.employer_match_amount ?? ''),
@@ -86,7 +88,7 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
     const payload = {
       account_name:          form.account_name,
       account_type:          form.account_type,
-      owner:                 form.owner,
+      user_id:               parseInt(form.user_id, 10),
       annual_limit:          parseFloat(form.annual_limit),
       ytd_contributions:     parseFloat(form.ytd_contributions),
       employer_match_amount: parseOpt(form.employer_match_amount),
@@ -149,9 +151,10 @@ export function RetirementModal({ account, onClose, onSaved }: RetirementModalPr
 
           <div className={FIELD}>
             <label className={LABEL}>Owner</label>
-            <select className={INPUT} value={form.owner} onChange={e => set('owner', e.target.value)}>
-              <option value="Steven">Steven</option>
-              <option value="Wife">Wife</option>
+            <select className={INPUT} value={form.user_id} onChange={e => set('user_id', e.target.value)}>
+              {profiles.map(p => (
+                <option key={p.id} value={String(p.id)}>{p.name}</option>
+              ))}
             </select>
           </div>
 

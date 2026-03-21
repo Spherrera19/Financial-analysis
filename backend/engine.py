@@ -132,20 +132,38 @@ def build_accounts(conn: sqlite3.Connection) -> list[Account]:
 # build_period
 # ---------------------------------------------------------------------------
 
-def build_period(conn: sqlite3.Connection, period_key: str) -> PeriodData:
+def build_period(
+    conn: sqlite3.Connection,
+    period_key: str,
+    ledger_id: int | None = None,
+) -> PeriodData:
     """
     Compute all chart/KPI data for a given period key.
     Mirrors compute_period_data() in generate_dashboard.py exactly.
     Uses pd.read_sql_query() + Pandas aggregations to keep math identical.
+
+    ledger_id: when provided, restricts the query to a single ledger workspace.
+    The value is always passed as a bound parameter — never interpolated into
+    the SQL string — to prevent SQL injection.
     """
     period_months = get_period_months(period_key)
     ms = set(period_months)
 
     placeholders = ",".join("?" * len(period_months))
+    params: list = list(period_months)
+
+    # Ledger filter: append clause + param only when a specific ledger is requested.
+    # The ledger_id value travels as a bound ? parameter, not as an f-string substitution.
+    ledger_clause = ""
+    if ledger_id is not None:
+        ledger_clause = " AND ledger_id = ?"
+        params.append(ledger_id)
+
     df = pd.read_sql_query(
-        f"SELECT date, merchant, category, amount, is_checking FROM transactions WHERE substr(date, 1, 7) IN ({placeholders})",
+        f"SELECT date, merchant, category, amount, is_checking FROM transactions"
+        f" WHERE substr(date, 1, 7) IN ({placeholders}){ledger_clause}",
         conn,
-        params=period_months,
+        params=params,
     )
 
     if df.empty:
@@ -424,17 +442,32 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
 # get_recent_transactions
 # ---------------------------------------------------------------------------
 
-def get_recent_transactions(conn: sqlite3.Connection) -> list[Transaction]:
+def get_recent_transactions(
+    conn: sqlite3.Connection,
+    ledger_id: int | None = None,
+) -> list[Transaction]:
     """
     Compact Transaction models for the 14-month window (year + current).
     Mirrors the all_tx_compact section of generate_dashboard.py.
+
+    ledger_id: when provided, restricts results to that ledger workspace.
     """
     keep_months = set(get_period_months("year") + get_period_months("current"))
 
-    df = pd.read_sql_query(
-        "SELECT date, merchant, category, account, amount, owner, type, is_checking FROM transactions ORDER BY date DESC",
-        conn,
-    )
+    if ledger_id is not None:
+        df = pd.read_sql_query(
+            "SELECT date, merchant, category, account, amount, owner, type, is_checking"
+            " FROM transactions WHERE ledger_id = ? ORDER BY date DESC",
+            conn,
+            params=[ledger_id],
+        )
+    else:
+        df = pd.read_sql_query(
+            "SELECT date, merchant, category, account, amount, owner, type, is_checking"
+            " FROM transactions ORDER BY date DESC",
+            conn,
+        )
+
     if df.empty:
         return []
 

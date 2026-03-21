@@ -136,6 +136,145 @@ def _migrate(conn: sqlite3.Connection) -> None:
             )
         """)
 
+    # v6: seed default TaxProfile singleton (id=1) when table is empty
+    if "tax_profiles" in existing_tables and \
+       conn.execute("SELECT COUNT(*) FROM tax_profiles").fetchone()[0] == 0:
+        conn.execute(
+            "INSERT INTO tax_profiles (id, filing_status, gross_w2_income, estimated_annual_withholdings) "
+            "VALUES (1, 'MFJ', 0.0, 0.0)"
+        )
+
+    # v7: seed default UserProfile rows (Steven + Wife) when table is empty
+    if "userprofile" in existing_tables and \
+       conn.execute("SELECT COUNT(*) FROM userprofile").fetchone()[0] == 0:
+        conn.execute(
+            "INSERT INTO userprofile (name, is_primary) VALUES ('Steven', 1)"
+        )
+        conn.execute(
+            "INSERT INTO userprofile (name, is_primary) VALUES ('Wife', 0)"
+        )
+
+    # v7: add user_id column to retirement_accounts if missing, then backfill from owner string
+    if "retirement_accounts" in existing_tables:
+        existing_ra = {row[1] for row in conn.execute("PRAGMA table_info(retirement_accounts)")}
+        if "user_id" not in existing_ra:
+            conn.execute("ALTER TABLE retirement_accounts ADD COLUMN user_id INTEGER")
+
+        # Backfill user_id from owner string for any rows still NULL.
+        # Only run if the legacy owner column still exists (pre-migration databases).
+        if "userprofile" in existing_tables:
+            has_owner_col = "owner" in {row[1] for row in conn.execute("PRAGMA table_info(retirement_accounts)")}
+            if has_owner_col:
+                conn.execute("""
+                    UPDATE retirement_accounts
+                    SET user_id = (
+                        SELECT id FROM userprofile
+                        WHERE LOWER(userprofile.name) = LOWER(retirement_accounts.owner)
+                        LIMIT 1
+                    )
+                    WHERE user_id IS NULL
+                      AND owner IS NOT NULL
+                      AND owner != ''
+                """)
+
+    # v8: seed default Ledger + LedgerAccess rows when tables are empty
+    if "ledger" in existing_tables and \
+       conn.execute("SELECT COUNT(*) FROM ledger").fetchone()[0] == 0:
+        conn.execute("INSERT INTO ledger (name, type) VALUES ('Household', 'joint')")
+        conn.execute("INSERT INTO ledger (name, type) VALUES ('Steven Private', 'personal')")
+        conn.execute("INSERT INTO ledger (name, type) VALUES ('Wife Private', 'personal')")
+
+    if "ledgeraccess" in existing_tables and "ledger" in existing_tables and \
+       "userprofile" in existing_tables and \
+       conn.execute("SELECT COUNT(*) FROM ledgeraccess").fetchone()[0] == 0:
+        # Resolve dynamic IDs so the seed is position-independent
+        household_id = conn.execute(
+            "SELECT id FROM ledger WHERE name='Household' LIMIT 1"
+        ).fetchone()
+        steven_priv_id = conn.execute(
+            "SELECT id FROM ledger WHERE name='Steven Private' LIMIT 1"
+        ).fetchone()
+        wife_priv_id = conn.execute(
+            "SELECT id FROM ledger WHERE name='Wife Private' LIMIT 1"
+        ).fetchone()
+        steven_id = conn.execute(
+            "SELECT id FROM userprofile WHERE name='Steven' LIMIT 1"
+        ).fetchone()
+        wife_id = conn.execute(
+            "SELECT id FROM userprofile WHERE name='Wife' LIMIT 1"
+        ).fetchone()
+
+        if all(r is not None for r in [household_id, steven_priv_id, wife_priv_id, steven_id, wife_id]):
+            h, sp, wp = household_id[0], steven_priv_id[0], wife_priv_id[0]
+            sid, wid = steven_id[0], wife_id[0]
+            conn.executemany(
+                "INSERT OR IGNORE INTO ledgeraccess (user_id, ledger_id, role) VALUES (?, ?, ?)",
+                [
+                    (sid, h,  "admin"),
+                    (sid, sp, "admin"),
+                    (wid, h,  "admin"),
+                    (wid, wp, "admin"),
+                ],
+            )
+
+    # v8: add ledger_id column to retirement_accounts and incomesource, backfill to Household
+    household_row = None
+    if "ledger" in existing_tables:
+        household_row = conn.execute(
+            "SELECT id FROM ledger WHERE name='Household' LIMIT 1"
+        ).fetchone()
+
+    if "retirement_accounts" in existing_tables:
+        ra_cols = {row[1] for row in conn.execute("PRAGMA table_info(retirement_accounts)")}
+        if "ledger_id" not in ra_cols:
+            conn.execute("ALTER TABLE retirement_accounts ADD COLUMN ledger_id INTEGER")
+        if household_row is not None:
+            conn.execute(
+                "UPDATE retirement_accounts SET ledger_id = ? WHERE ledger_id IS NULL",
+                (household_row[0],),
+            )
+
+    if "incomesource" in existing_tables:
+        is_cols = {row[1] for row in conn.execute("PRAGMA table_info(incomesource)")}
+        if "ledger_id" not in is_cols:
+            conn.execute("ALTER TABLE incomesource ADD COLUMN ledger_id INTEGER")
+        if household_row is not None:
+            conn.execute(
+                "UPDATE incomesource SET ledger_id = ? WHERE ledger_id IS NULL",
+                (household_row[0],),
+            )
+
+    # v9: add ledger_id to transactions, categories, equity_grants; backfill all rows to Household
+    if "transactions" in existing_tables:
+        tx_cols = {row[1] for row in conn.execute("PRAGMA table_info(transactions)")}
+        if "ledger_id" not in tx_cols:
+            conn.execute("ALTER TABLE transactions ADD COLUMN ledger_id INTEGER")
+        if household_row is not None:
+            conn.execute(
+                "UPDATE transactions SET ledger_id = ? WHERE ledger_id IS NULL",
+                (household_row[0],),
+            )
+
+    if "categories" in existing_tables:
+        cat_cols = {row[1] for row in conn.execute("PRAGMA table_info(categories)")}
+        if "ledger_id" not in cat_cols:
+            conn.execute("ALTER TABLE categories ADD COLUMN ledger_id INTEGER")
+        if household_row is not None:
+            conn.execute(
+                "UPDATE categories SET ledger_id = ? WHERE ledger_id IS NULL",
+                (household_row[0],),
+            )
+
+    if "equity_grants" in existing_tables:
+        eg_cols = {row[1] for row in conn.execute("PRAGMA table_info(equity_grants)")}
+        if "ledger_id" not in eg_cols:
+            conn.execute("ALTER TABLE equity_grants ADD COLUMN ledger_id INTEGER")
+        if household_row is not None:
+            conn.execute(
+                "UPDATE equity_grants SET ledger_id = ? WHERE ledger_id IS NULL",
+                (household_row[0],),
+            )
+
 
 def sync_categories_from_transactions(conn: sqlite3.Connection) -> None:
     """

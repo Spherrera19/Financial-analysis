@@ -123,8 +123,8 @@ def _load_accounts_history(data_dir: Path) -> list[dict]:
 def _insert_transactions(conn: sqlite3.Connection, rows: list[dict]) -> int:
     conn.executemany(
         """
-        INSERT INTO transactions (date, merchant, category, account, amount, owner, type, is_checking)
-        VALUES (:date, :merchant, :category, :account, :amount, :owner, :type, :is_checking)
+        INSERT INTO transactions (date, merchant, category, account, amount, owner, type, is_checking, ledger_id)
+        VALUES (:date, :merchant, :category, :account, :amount, :owner, :type, :is_checking, :ledger_id)
         """,
         rows,
     )
@@ -180,9 +180,20 @@ def build_database(
     conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'accounts_history');")
     conn.commit()
 
+    # ── Resolve Household ledger_id for stamping imported rows ────────────────
+    # init_db() (called above) seeds the Household ledger via _migrate(), so the
+    # row is guaranteed to exist by this point. We assign all CSV-imported
+    # transactions to Household — the default shared workspace.
+    _household = conn.execute(
+        "SELECT id FROM ledger WHERE name='Household' LIMIT 1"
+    ).fetchone()
+    _household_id: int | None = _household[0] if _household else None
+
     # ── Load & insert transactions ────────────────────────────────────────────
     print("\n[ingest] Loading transactions...")
     tx_rows = _load_transactions(data_dir)
+    for row in tx_rows:
+        row["ledger_id"] = _household_id
     n_tx = _insert_transactions(conn, tx_rows)
     conn.commit()
     print(f"  Inserted {n_tx} transactions into SQLite.")

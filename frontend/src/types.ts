@@ -1,7 +1,19 @@
+export interface LedgerMember {
+  user_id: number;
+  name:    string;
+  role:    string;  // 'admin' | 'viewer'
+}
+
 export interface Ledger {
-  id: number;
-  name: string;
-  type: 'joint' | 'personal' | 'business';
+  id:      number;
+  name:    string;
+  type:    'joint' | 'personal' | 'business';
+  members: LedgerMember[];
+}
+
+export interface LedgerSharePayload {
+  user_id: number;
+  role:    'admin' | 'viewer';
 }
 
 export interface Meta {

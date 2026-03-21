@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import type { RetirementAccount } from '../types';
+import type { RetirementAccount, UserProfile } from '../types';
 import { RetirementCard } from '../components/cards/RetirementCard';
 import { RetirementModal } from '../components/modals/RetirementModal';
 
@@ -26,11 +26,17 @@ export default function TaxRetirementTab() {
       }),
   });
 
+  const { data: profiles = [] } = useQuery<UserProfile[]>({
+    queryKey: ['profiles'],
+    queryFn: () => fetch(`${API}/api/profiles`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
+  });
+
   // null = closed | 'new' = create mode | RetirementAccount = edit mode
   const [modalAccount, setModalAccount] = useState<RetirementAccount | 'new' | null>(null);
-
-  const steven = accounts.filter(a => a.owner === 'Steven');
-  const wife   = accounts.filter(a => a.owner === 'Wife');
 
   // KPI calculations
   const totalContributions = accounts.reduce((s, a) => s + a.ytd_contributions, 0);
@@ -117,41 +123,27 @@ export default function TaxRetirementTab() {
       {/* ── Player grid ────────────────────────────────────────────────── */}
       {accounts.length > 0 && (
         <div className="grid grid-cols-2 gap-8">
-          {/* Steven */}
-          <div>
-            <h2 className="text-base font-bold text-[var(--text-secondary)] mb-4 uppercase tracking-[0.06em]">
-              Steven
-            </h2>
-            {steven.length === 0 ? (
-              <p className="text-[var(--text-muted)] text-sm">No accounts.</p>
-            ) : (
-              steven.map(acc => (
-                <RetirementCard
-                  key={acc.id}
-                  account={acc}
-                  onEdit={setModalAccount}
-                />
-              ))
-            )}
-          </div>
-
-          {/* Wife */}
-          <div>
-            <h2 className="text-base font-bold text-[var(--text-secondary)] mb-4 uppercase tracking-[0.06em]">
-              Wife
-            </h2>
-            {wife.length === 0 ? (
-              <p className="text-[var(--text-muted)] text-sm">No accounts.</p>
-            ) : (
-              wife.map(acc => (
-                <RetirementCard
-                  key={acc.id}
-                  account={acc}
-                  onEdit={setModalAccount}
-                />
-              ))
-            )}
-          </div>
+          {profiles.map(profile => {
+            const profileAccounts = accounts.filter(a => a.user_id === profile.id);
+            return (
+              <div key={profile.id}>
+                <h2 className="text-base font-bold text-[var(--text-secondary)] mb-4 uppercase tracking-[0.06em]">
+                  {profile.name}
+                </h2>
+                {profileAccounts.length === 0 ? (
+                  <p className="text-[var(--text-muted)] text-sm">No accounts.</p>
+                ) : (
+                  profileAccounts.map(acc => (
+                    <RetirementCard
+                      key={acc.id}
+                      account={acc}
+                      onEdit={setModalAccount}
+                    />
+                  ))
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -160,6 +152,7 @@ export default function TaxRetirementTab() {
         {modalAccount !== null && (
           <RetirementModal
             account={modalAccount === 'new' ? null : modalAccount}
+            profiles={profiles}
             onClose={() => setModalAccount(null)}
             onSaved={() => refetch()}
           />

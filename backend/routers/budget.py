@@ -1,7 +1,7 @@
 """Budget routes: /api/routing, /api/categories, /api/categories/progress."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 from sqlalchemy import text
@@ -53,19 +53,37 @@ def save_routing(
 # ── Categories ───────────────────────────────────────────────────────────────
 
 @router.get("/api/categories")
-def get_categories(session: Session = Depends(get_db)) -> JSONResponse:
-    """Return all categories ordered alphabetically."""
-    cats = session.exec(select(Category).order_by(Category.name)).all()
-    return JSONResponse(content=[{"id": c.id, "name": c.name, "monthly_budget": c.monthly_budget} for c in cats])
+def get_categories(
+    ledger_id: int | None = Query(default=None, description="Scope to a specific ledger workspace."),
+    session: Session = Depends(get_db),
+) -> JSONResponse:
+    """Return categories ordered alphabetically, optionally filtered by ledger."""
+    stmt = select(Category).order_by(Category.name)
+    if ledger_id is not None:
+        stmt = stmt.where(Category.ledger_id == ledger_id)
+    cats = session.exec(stmt).all()
+    return JSONResponse(content=[{"id": c.id, "name": c.name, "monthly_budget": c.monthly_budget, "ledger_id": c.ledger_id} for c in cats])
 
 
 @router.get("/api/categories/progress")
-def get_categories_progress(session: Session = Depends(get_db)) -> JSONResponse:
+def get_categories_progress(
+    ledger_id: int | None = Query(default=None, description="Scope to a specific ledger workspace."),
+    session: Session = Depends(get_db),
+) -> JSONResponse:
     """
     Return budgeted categories (monthly_budget > 0) with actual spending
     summed for the current calendar month.
+
+    Pass ?ledger_id=<id> to restrict both categories and their spending to one workspace.
+    The ledger_id value is always bound as a named parameter — never interpolated.
     """
-    rows = session.execute(text("""
+    # Build optional WHERE / JOIN clauses. The literal strings contain only the
+    # placeholder name (:lid), never the value itself — SQL injection is not possible.
+    cat_lid_clause = "AND c.ledger_id = :lid" if ledger_id is not None else ""
+    tx_lid_clause  = "AND t.ledger_id = :lid" if ledger_id is not None else ""
+    params         = {"lid": ledger_id} if ledger_id is not None else {}
+
+    rows = session.execute(text(f"""
         SELECT
             c.name,
             c.monthly_budget,
@@ -78,10 +96,12 @@ def get_categories_progress(session: Session = Depends(get_db)) -> JSONResponse:
             ON  t.category = c.name
             AND strftime('%Y-%m', t.date) = strftime('%Y-%m', 'now')
             AND t.type NOT IN ('I', 'X')
+            {tx_lid_clause}
         WHERE c.monthly_budget > 0
+            {cat_lid_clause}
         GROUP BY c.id, c.name, c.monthly_budget
         ORDER BY c.name ASC
-    """)).mappings().all()
+    """), params).mappings().all()
     return JSONResponse(content=[dict(r) for r in rows])
 
 
@@ -97,13 +117,13 @@ def create_category(
     existing = session.exec(select(Category).where(Category.name == name)).first()
     if existing:
         raise HTTPException(status_code=409, detail=f"Category '{name}' already exists.")
-    cat = Category(name=name, monthly_budget=body.monthly_budget)
+    cat = Category(name=name, monthly_budget=body.monthly_budget, ledger_id=body.ledger_id)
     session.add(cat)
     session.commit()
     session.refresh(cat)
     return JSONResponse(
         status_code=201,
-        content={"id": cat.id, "name": cat.name, "monthly_budget": cat.monthly_budget},
+        content={"id": cat.id, "name": cat.name, "monthly_budget": cat.monthly_budget, "ledger_id": cat.ledger_id},
     )
 
 
