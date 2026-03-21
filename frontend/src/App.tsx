@@ -4,7 +4,7 @@ import type { DashboardPayload, PeriodKey, TabKey, DrawerFilter } from './types'
 import type { Theme } from './lib/theme';
 import { applyTheme, loadTheme } from './lib/theme';
 import { useLedger } from './context/LedgerContext';
-import { Sidebar, TopBar, GuidedTour } from './components/layout';
+import { Sidebar, TopBar, GuidedTour, BASIC_STEP_TABS, ADVANCED_STEP_TABS } from './components/layout';
 import { TransactionDrawer } from './components/modals';
 import { useTour } from './hooks/useTour';
 import {
@@ -163,8 +163,8 @@ export default function App() {
               activeTheme={activeTheme}
               onThemeChange={handleThemeChange}
               onRefresh={refreshData}
-              onStartBasicTour={() => startTour('basic')}
-              onStartAdvancedTour={() => startTour('advanced')}
+              onStartBasicTour={() => { setActiveTab(BASIC_STEP_TABS[0]); startTour('basic'); }}
+              onStartAdvancedTour={() => { setActiveTab(ADVANCED_STEP_TABS[0]); startTour('advanced'); }}
             />
           </div>
         ) : activeTab === 'equity' ? (

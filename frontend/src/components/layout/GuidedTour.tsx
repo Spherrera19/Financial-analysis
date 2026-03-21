@@ -13,7 +13,7 @@ interface GuidedTourProps {
 
 // Maps each step index to the tab that must be active for the target to exist in the DOM.
 // TopBar (#tour-period-filter, #tour-ledger-switcher) is only rendered on data tabs — 'overview' works.
-const BASIC_STEP_TABS: TabKey[] = [
+export const BASIC_STEP_TABS: TabKey[] = [
   'overview',   // 0 — #tour-period-filter   (TopBar, visible on all data tabs)
   'overview',   // 1 — #tour-ledger-switcher (TopBar, visible on all data tabs)
   'overview',   // 2 — #tour-net-worth-kpi
@@ -28,7 +28,7 @@ const BASIC_STEP_TABS: TabKey[] = [
 // on data tabs (overview, cashflow, spending, debt, transactions) — it is NOT rendered
 // when activeTab === 'settings'. So step 0 must navigate to 'overview' to mount the
 // TopBar before Joyride tries to attach the tooltip. Steps 1 & 2 are in SettingsTab.
-const ADVANCED_STEP_TABS: TabKey[] = [
+export const ADVANCED_STEP_TABS: TabKey[] = [
   'overview',   // 0 — #tour-ai-export (TopBar — only rendered on data tabs)
   'settings',   // 1 — [data-tour="data-import-section"]
   'settings',   // 2 — [data-tour="workspace-section"]
@@ -154,8 +154,8 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
         const prevIndex = index - 1;
         if (prevIndex >= 0) {
           setActiveTab(stepTabs[prevIndex]);
+          setTimeout(() => setStepIndex(prevIndex), 400);
         }
-        setTimeout(() => setStepIndex(prevIndex), 400);
       }
     }
   }
