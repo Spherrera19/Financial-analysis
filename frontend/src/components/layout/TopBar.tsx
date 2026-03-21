@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Copy, Download, CalendarDays, ChevronDown, Check, Building2, User } from 'lucide-react';
+import { Copy, Download, CalendarDays, ChevronDown, Check, Building2, User, LifeBuoy } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { PeriodKey, UserProfile } from '../../types';
 import { useLedger } from '../../context/LedgerContext';
@@ -11,6 +11,7 @@ interface TopBarProps {
   asOfDate: string;
   onCopyAISummary: () => void;
   onDownloadAISummary: () => void;
+  onRestartTour?: () => void;
 }
 
 const PERIOD_LABELS: { key: PeriodKey; label: string }[] = [
@@ -27,6 +28,7 @@ export function TopBar({
   asOfDate,
   onCopyAISummary,
   onDownloadAISummary,
+  onRestartTour,
 }: TopBarProps) {
   const [open, setOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
@@ -96,6 +98,7 @@ export function TopBar({
       {/* Period dropdown */}
       <div ref={dropdownRef} style={{ position: 'relative' }}>
         <button
+          id="tour-period-filter"
           onClick={() => setOpen(o => !o)}
           style={{
             display: 'flex',
@@ -189,6 +192,7 @@ export function TopBar({
       {ledgers.length > 0 && (
         <div ref={ledgerDropdownRef} style={{ position: 'relative' }}>
           <button
+            id="tour-ledger-switcher"
             onClick={() => setLedgerOpen(o => !o)}
             style={{
               display: 'flex',
@@ -274,7 +278,29 @@ export function TopBar({
       <UserSwitcherDropdown />
 
       {/* Export buttons + as-of date */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, marginLeft: 'auto' }}>
+      <div id="tour-ai-export" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, marginLeft: 'auto' }}>
+        {onRestartTour && (
+          <button
+            onClick={onRestartTour}
+            title="Replay tour"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36,
+              borderRadius: '0.5rem',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-surface)',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'color 0.15s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
+          >
+            <LifeBuoy size={15} strokeWidth={2} />
+          </button>
+        )}
         <span
           style={{
             fontSize: '0.6875rem',

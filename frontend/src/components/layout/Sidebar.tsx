@@ -48,6 +48,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
           Uses Tailwind `group` so child elements can react to rail hover.
       */}
       <aside
+        id="tour-nav-rail"
         className="hidden md:flex group w-[72px] hover:w-60 hover:shadow-[4px_0_20px_rgba(0,0,0,0.12)] transition-[width,box-shadow] duration-200 ease-in-out"
         style={{
           position: 'fixed',
@@ -117,6 +118,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                   return (
                     <button
                       key={id}
+                      id={`tour-nav-${id}`}
                       onClick={() => onTabChange(id)}
                       style={{
                         position: 'relative',

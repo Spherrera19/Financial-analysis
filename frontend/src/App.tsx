@@ -4,8 +4,9 @@ import type { DashboardPayload, PeriodKey, TabKey, DrawerFilter } from './types'
 import type { Theme } from './lib/theme';
 import { applyTheme, loadTheme } from './lib/theme';
 import { useLedger } from './context/LedgerContext';
-import { Sidebar, TopBar } from './components/layout';
+import { Sidebar, TopBar, GuidedTour } from './components/layout';
 import { TransactionDrawer } from './components/modals';
+import { useTour } from './hooks/useTour';
 import {
   OverviewTab,
   CashFlowTab,
@@ -70,6 +71,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [activePeriod, setActivePeriod] = useState<PeriodKey>('last');
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+
+  // ── Guided tour ──
+  const { activeTour, finishTour, startTour } = useTour();
 
   // ── Drill-down drawer — declared unconditionally so BudgetTab (pre-guard) gets it safely ──
   const [drawerFilter, setDrawerFilter] = useState<DrawerFilter | null>(null)
@@ -159,6 +163,8 @@ export default function App() {
               activeTheme={activeTheme}
               onThemeChange={handleThemeChange}
               onRefresh={refreshData}
+              onStartBasicTour={() => startTour('basic')}
+              onStartAdvancedTour={() => startTour('advanced')}
             />
           </div>
         ) : activeTab === 'equity' ? (
@@ -185,6 +191,7 @@ export default function App() {
                   asOfDate={data.meta.as_of_date}
                   onCopyAISummary={handleCopyAISummary}
                   onDownloadAISummary={handleDownloadAISummary}
+                  onRestartTour={() => startTour('basic')}
                 />
                 <div style={{ padding: '1.5rem' }}>
                   <AnimatePresence mode="wait">
@@ -211,6 +218,9 @@ export default function App() {
           <TransactionDrawer filter={drawerFilter} onClose={closeDrawer} />
         )}
       </AnimatePresence>
+
+      {/* Guided tour — mounted at root so it works across all tabs */}
+      <GuidedTour activeTour={activeTour} onFinish={finishTour} />
     </div>
   );
 }

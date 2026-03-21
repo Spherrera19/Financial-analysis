@@ -3,12 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Theme } from '../lib/theme';
 import type { UserProfile, UserProfileCreate, Ledger } from '../types';
 import { ShareLedgerModal } from '../components/modals/ShareLedgerModal';
+import { CreateLedgerModal } from '../components/modals/CreateLedgerModal';
 import { useUser } from '../context/UserContext';
 
 interface SettingsTabProps {
   activeTheme: Theme;
   onThemeChange: (t: Theme) => void;
   onRefresh: () => void;
+  onStartBasicTour?: () => void;
+  onStartAdvancedTour?: () => void;
 }
 
 type OnError = (msg: string) => void;
@@ -1203,8 +1206,9 @@ function SystemLogsSection() {
 // SettingsTab
 // ---------------------------------------------------------------------------
 
-export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsTabProps) {
+export function SettingsTab({ activeTheme, onThemeChange, onRefresh, onStartBasicTour, onStartAdvancedTour }: SettingsTabProps) {
   const [globalErrors, setGlobalErrors] = useState<string[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const addError = useCallback((msg: string) => {
     console.error('[SettingsTab]', msg);
@@ -1264,25 +1268,55 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsT
       <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
       {/* ── Workspace Access ── */}
-      <h2 style={sectionHeader}>Workspace Access</h2>
-      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Manage which household members have access to each financial workspace. Admins can
-        edit data; Viewers can only read.
-      </p>
-      <WorkspaceAccessSection />
+      <div data-tour="workspace-section">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+          <h2 style={{ ...sectionHeader, marginBottom: 0 }}>Workspace Access</h2>
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+              padding: '0.375rem 0.75rem',
+              fontSize: '0.8125rem', fontWeight: 600,
+              color: 'var(--accent-blue)',
+              background: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent)',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-blue) 18%, transparent)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-blue) 10%, transparent)')}
+          >
+            + Add Workspace
+          </button>
+        </div>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+          Manage which household members have access to each financial workspace. Admins can
+          edit data; Viewers can only read.
+        </p>
+        <WorkspaceAccessSection />
+      </div>
+
+      <CreateLedgerModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
 
       <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
       {/* ── Data Import ── */}
-      <h2 style={sectionHeader}>Data Import</h2>
-      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Drop CSV exports here to refresh the dashboard. Monarch exports
-        (Transactions_*, Balances_*) replace existing files of the same type
-        automatically. Brokerage equity exports (Equity_*, RSU_*) refresh vesting
-        data on a per-ticker basis — only brokerage-imported rows for that ticker
-        are replaced, so manually entered grants are never overwritten.
-      </p>
-      <DataImportSection onRefresh={onRefresh} onError={addError} />
+      <div data-tour="data-import-section">
+        <h2 style={sectionHeader}>Data Import</h2>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+          Drop CSV exports here to refresh the dashboard. Monarch exports
+          (Transactions_*, Balances_*) replace existing files of the same type
+          automatically. Brokerage equity exports (Equity_*, RSU_*) refresh vesting
+          data on a per-ticker basis — only brokerage-imported rows for that ticker
+          are replaced, so manually entered grants are never overwritten.
+        </p>
+        <DataImportSection onRefresh={onRefresh} onError={addError} />
+      </div>
 
       <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
@@ -1359,6 +1393,72 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsT
         Paid-off accounts are included so you can pre-configure cards you plan to use again.
       </p>
       <DebtConfigSection onRefresh={onRefresh} onError={addError} />
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
+
+      <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
+
+      {/* ── Tutorials & Onboarding ── */}
+      <h2 style={sectionHeader}>Tutorials & Onboarding</h2>
+      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+        Replay guided tours that walk you through the platform's key features. The Basic Tour
+        covers every section of the dashboard; the Advanced Tour dives into power-user
+        features like AI export, data import, and workspace access management.
+      </p>
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={onStartBasicTour}
+          disabled={!onStartBasicTour}
+          style={{
+            padding: '0.5rem 1rem',
+            borderRadius: '0.5rem',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-primary)',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-blue)';
+            (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--accent-blue) 6%, var(--bg-surface))';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-subtle)';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)';
+          }}
+        >
+          Restart Basic Tour — Tab Overview
+        </button>
+        <button
+          type="button"
+          onClick={onStartAdvancedTour}
+          disabled={!onStartAdvancedTour}
+          style={{
+            padding: '0.5rem 1rem',
+            borderRadius: '0.5rem',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-primary)',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-blue)';
+            (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--accent-blue) 6%, var(--bg-surface))';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-subtle)';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)';
+          }}
+        >
+          Start Advanced Tour — App Features
+        </button>
+      </div>
 
       <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
