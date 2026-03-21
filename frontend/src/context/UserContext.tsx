@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 
 const STORAGE_KEY = 'activeUserId';
 
@@ -12,13 +12,14 @@ const UserContext = createContext<UserContextValue | null>(null);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [activeUserId, setActiveUserIdState] = useState<number>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? Number(stored) : 1;
+    const parsed = Number(stored);
+    return stored !== null && Number.isFinite(parsed) ? parsed : 1;
   });
 
-  const setActiveUserId = (id: number) => {
+  const setActiveUserId = useCallback((id: number) => {
     localStorage.setItem(STORAGE_KEY, String(id));
     setActiveUserIdState(id);
-  };
+  }, []);
 
   return (
     <UserContext.Provider value={{ activeUserId, setActiveUserId }}>
