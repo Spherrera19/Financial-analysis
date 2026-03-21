@@ -1,6 +1,8 @@
 """Ledger workspace CRUD routes: /api/ledgers."""
 from __future__ import annotations
 
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
@@ -40,22 +42,25 @@ def list_ledgers(user_id: int, session: Session = Depends(get_db)) -> JSONRespon
     name_map: dict[int, str] = {p.id: p.name for p in profiles if p.id is not None}
 
     # 5. Group access rows by ledger_id.
-    from collections import defaultdict
     members_by_ledger: dict[int, list[LedgerMember]] = defaultdict(list)
     for row in all_access:
+        resolved_name = name_map.get(row.user_id)
+        if resolved_name is None:
+            continue  # orphaned LedgerAccess row — skip rather than emit synthetic data
         members_by_ledger[row.ledger_id].append(
-            LedgerMember(user_id=row.user_id, name=name_map.get(row.user_id, "Unknown"), role=row.role)
+            LedgerMember(user_id=row.user_id, name=resolved_name, role=row.role)
         )
 
     # 6. Build the enriched response.
     result = [
         LedgerWithMembers(
-            id=l.id,           # type: ignore[arg-type]
+            id=l.id,
             name=l.name,
             type=l.type,
             members=members_by_ledger.get(l.id, []),
         ).model_dump()
         for l in ledgers
+        if l.id is not None  # every persisted ledger has an id; guard satisfies type checker
     ]
     return JSONResponse(content=result)
 

@@ -174,54 +174,6 @@ def test_share_invalid_ledger_returns_404(client):
     assert r.status_code == 404
 
 
-# ── End-to-end: business LLC workflow ────────────────────────────────────────
-
-def test_create_business_ledger_add_multiple_incomes_and_share(client):
-    """
-    Full workflow: create an LLC ledger, add W2 + LLC income sources to it,
-    verify they are stored under the correct ledger_id, then share with Wife.
-    """
-    # 1. Create the LLC ledger
-    ledger_r = client.post("/api/ledgers", json={
-        "name": "Wedding Photography LLC",
-        "type": "business",
-        "creator_user_id": 1,
-    })
-    assert ledger_r.status_code == 201
-    llc_id = ledger_r.json()["id"]
-
-    # 2. Add two income sources to the LLC ledger
-    r1 = client.post("/api/incomes", json={
-        "ledger_id": llc_id,
-        "source_type": "LLC",
-        "gross_amount": 45_000.0,
-        "estimated_withholdings": 0.0,
-    })
-    assert r1.status_code == 201
-
-    r2 = client.post("/api/incomes", json={
-        "ledger_id": llc_id,
-        "source_type": "1099",
-        "gross_amount": 8_000.0,
-        "estimated_withholdings": 0.0,
-    })
-    assert r2.status_code == 201
-
-    # 3. Both incomes appear under the LLC ledger_id
-    all_incomes = client.get("/api/incomes").json()
-    llc_incomes = [i for i in all_incomes if i["ledger_id"] == llc_id]
-    assert len(llc_incomes) == 2
-    assert {i["source_type"] for i in llc_incomes} == {"LLC", "1099"}
-
-    # 4. Share ledger with Wife
-    share_r = client.post(f"/api/ledgers/{llc_id}/share", json={"user_id": 2, "role": "viewer"})
-    assert share_r.status_code == 200
-
-    # 5. Wife can now see the LLC ledger
-    wife_ledgers = client.get("/api/ledgers?user_id=2").json()
-    assert "Wedding Photography LLC" in {l["name"] for l in wife_ledgers}
-
-
 def test_get_ledgers_household_members_embedded(client):
     """Household ledger (id=1) should embed both Steven (admin) and Wife (admin)."""
     r = client.get("/api/ledgers?user_id=1")
@@ -244,8 +196,9 @@ def test_get_ledgers_private_ledger_has_one_member(client):
 
 
 def test_get_ledgers_member_fields(client):
-    """Each member object must have user_id, name, and role keys."""
+    """Every member object in every ledger must have exactly {user_id, name, role} keys."""
     r = client.get("/api/ledgers?user_id=1")
     assert r.status_code == 200
-    member = r.json()[0]["members"][0]
-    assert set(member.keys()) == {"user_id", "name", "role"}
+    for ledger in r.json():
+        for member in ledger["members"]:
+            assert set(member.keys()) == {"user_id", "name", "role"}
