@@ -61,7 +61,12 @@ export function ShareLedgerModal({ isOpen, onClose, ledgerId, ledgerName }: Shar
     },
   });
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = () => {
+    reset();
+    setSelectedUserId('');
+    setSelectedRole('viewer');
+    onClose();
+  };
 
   return (
     <AnimatePresence>

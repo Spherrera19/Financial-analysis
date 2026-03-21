@@ -235,15 +235,17 @@ function HouseholdMembersSection() {
   const [addError, setAddError]       = useState<string | null>(null);
 
   const addMutation = useMutation({
-    mutationFn: (body: UserProfileCreate) =>
-      fetch(`${API}/api/profiles`, {
+    mutationFn: (body: UserProfileCreate) => {
+      setAddError(null);
+      return fetch(`${API}/api/profiles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }).then(r => {
         if (!r.ok) return r.json().then((e: { detail?: string }) => Promise.reject(new Error(e.detail ?? `HTTP ${r.status}`)));
         return r.json();
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.invalidateQueries({ queryKey: ['ledgers'] });
@@ -429,7 +431,7 @@ function HouseholdMembersSection() {
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter' && newName.trim()) addMutation.mutate({ name: newName.trim() });
-              if (e.key === 'Escape') { setShowAddForm(false); setNewName(''); }
+              if (e.key === 'Escape') { setShowAddForm(false); setNewName(''); setAddError(null); }
             }}
             style={{
               flex: 1, padding: '0.375rem 0.625rem', borderRadius: '0.375rem',
