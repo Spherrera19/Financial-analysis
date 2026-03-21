@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLedger } from '../context/LedgerContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import Chart from 'chart.js/auto';
 import type { DrawerFilter } from '../types';
@@ -572,11 +573,12 @@ function HealthBar({ item }: { item: CategoryProgress }) {
 }
 
 function LivePacing() {
+  const { selectedLedgerId } = useLedger();
   const { data: items = [], isLoading: loading, error } =
     useQuery<CategoryProgress[]>({
-      queryKey: ['categories/progress'],
+      queryKey: ['categories/progress', selectedLedgerId],
       queryFn:  () =>
-        fetch(`${API}/api/categories/progress`)
+        fetch(`${API}/api/categories/progress${selectedLedgerId != null ? `?ledger_id=${selectedLedgerId}` : ''}`)
           .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
     });
 
@@ -656,15 +658,16 @@ function toDraft(c: CategoryRow): CategoryRowDraft {
 
 function CategoryManager() {
   const qc = useQueryClient();
+  const { selectedLedgerId } = useLedger();
   const [catTab, setCatTab] = useState<'pacing' | 'budgets'>('pacing');
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
 
   const { data: rawRows = [], isLoading: loading, error: loadErr } =
     useQuery<CategoryRow[]>({
-      queryKey: ['categories'],
+      queryKey: ['categories', selectedLedgerId],
       queryFn:  () =>
-        fetch(`${API}/api/categories`)
+        fetch(`${API}/api/categories${selectedLedgerId != null ? `?ledger_id=${selectedLedgerId}` : ''}`)
           .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
     });
 
@@ -913,11 +916,12 @@ interface BudgetTabProps {
 }
 
 export function BudgetTab({ onDrillDown }: BudgetTabProps) {
+  const { selectedLedgerId } = useLedger();
   const { data: targets = [], isLoading: loading, error: loadErr } =
     useQuery<RoutingTarget[]>({
-      queryKey: ['routing'],
+      queryKey: ['routing', selectedLedgerId],
       queryFn:  () =>
-        fetch(`${API}/api/routing`)
+        fetch(`${API}/api/routing${selectedLedgerId != null ? `?ledger_id=${selectedLedgerId}` : ''}`)
           .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
     });
 

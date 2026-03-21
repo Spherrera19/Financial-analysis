@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import type { DashboardPayload, PeriodKey, TabKey, DrawerFilter } from './types';
 import type { Theme } from './lib/theme';
 import { applyTheme, loadTheme } from './lib/theme';
+import { useLedger } from './context/LedgerContext';
 import { Sidebar, TopBar } from './components/layout';
 import { TransactionDrawer } from './components/modals';
 import {
@@ -60,6 +61,9 @@ function ErrorScreen({ message }: { message: string }) {
 
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  // ── Ledger (workspace) context ──
+  const { selectedLedgerId } = useLedger();
+
   // ── Data state ──
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,19 +88,21 @@ export default function App() {
   const handleThemeChange = (t: Theme) => setActiveTheme(t);
 
   // ── Data fetching ──
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/dashboard`)
+    const base = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/dashboard`;
+    const url = selectedLedgerId != null ? `${base}?ledger_id=${selectedLedgerId}` : base;
+    fetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((d: DashboardPayload) => { setData(d); setLoading(false); })
       .catch((e: Error) => { setError(e.message); setLoading(false); });
-  };
+  }, [selectedLedgerId]);
 
-  useEffect(() => { refreshData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshData(); }, [refreshData]);
 
   // ── AI summary helpers ──
   const getSummaryText = () => data?.summaries[activePeriod] ?? '';

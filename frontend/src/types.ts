@@ -1,3 +1,9 @@
+export interface Ledger {
+  id: number;
+  name: string;
+  type: 'joint' | 'personal' | 'business';
+}
+
 export interface Meta {
   generated_at: string;
   as_of_date: string;
@@ -147,7 +153,7 @@ export interface RetirementAccount {
   id:                    number;
   account_name:          string;
   account_type:          string;   // '401k' | 'HSA' | 'Roth IRA' | etc.
-  owner:                 string;   // 'Steven' | 'Wife'
+  user_id:               number | null;
   annual_limit:          number;
   ytd_contributions:     number;
   employer_match_amount: number | null;
@@ -159,9 +165,32 @@ export type RetirementCreate = Omit<RetirementAccount, 'id'>;
 export interface RetirementUpdate {
   account_name?:          string;
   account_type?:          string;
-  owner?:                 string;
+  user_id?:               number | null;
   annual_limit?:          number;
   ytd_contributions?:     number;
   employer_match_amount?: number | null;
   employer_match_target?: number | null;
+}
+
+// ── Household Profiles & Income Sources (Phase 7) ─────────────────────────────
+
+export interface UserProfile {
+  id:         number;
+  name:       string;
+  is_primary: boolean;
+}
+
+export interface IncomeSource {
+  id:                     number;
+  user_id:                number;
+  source_type:            string;   // 'W2' | 'LLC' | '1099'
+  gross_amount:           number;
+  estimated_withholdings: number;
+}
+
+export interface IncomeSourceCreate {
+  user_id:                number;
+  source_type:            string;
+  gross_amount:           number;
+  estimated_withholdings: number;
 }

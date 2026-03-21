@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/layout'
+import { LedgerProvider } from './context/LedgerContext'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,7 +19,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <App />
+        <LedgerProvider>
+          <App />
+        </LedgerProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>,
