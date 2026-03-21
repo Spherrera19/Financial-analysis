@@ -55,12 +55,14 @@ function OverviewTab({ data, activePeriod, onDrillDown }: OverviewTabProps) {
             : 'repeat(4, minmax(0, 1fr))',
         }}
       >
-        <KpiCard
-          label="Net Worth"
-          value={fmt(data.summary.net_worth)}
-          variant={data.summary.net_worth >= 0 ? 'positive' : 'negative'}
-          subtitle={hasEquity ? `Total Wealth w/ Equity: ${fmt(totalWealth)}` : 'Assets − Liabilities'}
-        />
+        <div id="tour-net-worth-kpi">
+          <KpiCard
+            label="Net Worth"
+            value={fmt(data.summary.net_worth)}
+            variant={data.summary.net_worth >= 0 ? 'positive' : 'negative'}
+            subtitle={hasEquity ? `Total Wealth w/ Equity: ${fmt(totalWealth)}` : 'Assets − Liabilities'}
+          />
+        </div>
         <KpiCard
           label="Total Assets"
           value={fmt(data.summary.total_assets)}

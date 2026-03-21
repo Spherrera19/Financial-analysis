@@ -291,7 +291,7 @@ function DebtTab({ data }: DebtTabProps) {
       </div>
 
       {/* Debt Trend Chart */}
-      <div style={{ marginBottom: '1rem' }}>
+      <div id="tour-debt-trend" style={{ marginBottom: '1rem' }}>
         <CollapsibleCard title="Debt Trend">
           <DebtTrendLine debtSection={data.debt} />
         </CollapsibleCard>

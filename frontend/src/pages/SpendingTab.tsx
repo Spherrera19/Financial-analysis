@@ -15,7 +15,7 @@ function SpendingTab({ data, activePeriod, onDrillDown }: SpendingTabProps) {
   return (
     <div style={{ padding: '1.5rem' }}>
       {/* Full-width Donut */}
-      <div style={{ marginBottom: '1rem' }}>
+      <div id="tour-spending-donut" style={{ marginBottom: '1rem' }}>
         <CollapsibleCard title="Necessity vs Optional Breakdown">
           <SpendingDonut nec={nec} opt={opt} debt={debt} other={other} onDrillDown={onDrillDown} />
         </CollapsibleCard>

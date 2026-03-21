@@ -787,6 +787,7 @@ function CategoryManager() {
       <AnimatePresence mode="wait">
         {catTab === 'pacing' ? (
           <motion.div
+            id="tour-budget-bars"
             key="pacing"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}

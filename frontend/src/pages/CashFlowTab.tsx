@@ -53,9 +53,11 @@ function CashFlowTab({ data, activePeriod }: CashFlowTabProps) {
         className="grid-2"
         style={{ display: 'grid', gap: '1rem' }}
       >
-        <CollapsibleCard title="Income vs Spending">
-          <FlowChart periodData={period} />
-        </CollapsibleCard>
+        <div id="tour-cashflow-chart">
+          <CollapsibleCard title="Income vs Spending">
+            <FlowChart periodData={period} />
+          </CollapsibleCard>
+        </div>
         <CollapsibleCard title="Checking: Income vs Direct Expenses">
           <FlowChart periodData={chkData} />
         </CollapsibleCard>
