@@ -221,6 +221,11 @@ class UserProfileUpdate(BaseModel):
     is_primary: bool | None = None
 
 
+class UserProfileCreate(BaseModel):
+    """Payload for creating a new household member."""
+    name: str
+
+
 # ---------------------------------------------------------------------------
 # Entity-Ledger Architecture  (Phase 7 Step 2)
 # ---------------------------------------------------------------------------

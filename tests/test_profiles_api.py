@@ -205,3 +205,51 @@ def test_delete_income_nonexistent_returns_404(client):
     """DELETE /api/incomes/999 returns 404."""
     r = client.delete("/api/incomes/999")
     assert r.status_code == 404
+
+
+# ── POST /api/profiles ────────────────────────────────────────────────────────
+
+def test_post_profile_creates_user(client):
+    """POST /api/profiles creates a new UserProfile and returns it."""
+    r = client.post("/api/profiles", json={"name": "Alex"})
+    assert r.status_code == 201
+    body = r.json()
+    assert body["name"] == "Alex"
+    assert body["id"] is not None
+    assert body["is_primary"] is False
+
+
+def test_post_profile_appears_in_list(client):
+    """New profile is returned by GET /api/profiles."""
+    client.post("/api/profiles", json={"name": "Alex"})
+    names = {p["name"] for p in client.get("/api/profiles").json()}
+    assert "Alex" in names
+
+
+def test_post_profile_creates_personal_ledger(client):
+    """Creating a profile auto-creates a Personal ledger with admin access."""
+    r = client.post("/api/profiles", json={"name": "Alex"})
+    user_id = r.json()["id"]
+
+    ledgers_r = client.get(f"/api/ledgers?user_id={user_id}")
+    assert ledgers_r.status_code == 200
+    ledgers = ledgers_r.json()
+    assert len(ledgers) == 1
+    assert ledgers[0]["type"] == "personal"
+    assert ledgers[0]["name"] == "Alex's Personal"
+
+
+def test_post_profile_new_user_has_admin_access(client):
+    """New user has admin role in their auto-created ledger."""
+    r = client.post("/api/profiles", json={"name": "Alex"})
+    user_id = r.json()["id"]
+
+    ledgers = client.get(f"/api/ledgers?user_id={user_id}").json()
+    member = next(m for m in ledgers[0]["members"] if m["user_id"] == user_id)
+    assert member["role"] == "admin"
+
+
+def test_post_profile_missing_name_returns_422(client):
+    """POST /api/profiles without a name returns 422 Unprocessable Entity."""
+    r = client.post("/api/profiles", json={})
+    assert r.status_code == 422
