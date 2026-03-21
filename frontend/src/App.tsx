@@ -73,7 +73,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
   // ── Guided tour ──
-  const { activeTour, finishTour, startTour } = useTour();
+  const { activeTour, finishTour, startTour, stepIndex, setStepIndex } = useTour();
 
   // ── Drill-down drawer — declared unconditionally so BudgetTab (pre-guard) gets it safely ──
   const [drawerFilter, setDrawerFilter] = useState<DrawerFilter | null>(null)
@@ -220,7 +220,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Guided tour — mounted at root so it works across all tabs */}
-      <GuidedTour activeTour={activeTour} onFinish={finishTour} />
+      <GuidedTour activeTour={activeTour} onFinish={finishTour} setActiveTab={setActiveTab} stepIndex={stepIndex} setStepIndex={setStepIndex} />
     </div>
   );
 }
