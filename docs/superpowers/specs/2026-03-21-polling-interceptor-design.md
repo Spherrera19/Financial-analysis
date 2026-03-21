@@ -79,7 +79,9 @@ const intervalId = setInterval(() => {
       setActiveTab(stepTabs[nextIndex]);
       setStepIndex(nextIndex);
     } else {
-      onFinish(currentTour);
+      // activeTour is guaranteed non-null here: the effect returns early when !activeTour,
+      // so the interval can never reach this branch unless activeTour is set.
+      onFinish(activeTour!);
     }
   }
 }, 100);
@@ -102,7 +104,7 @@ return () => clearInterval(intervalId);
 
 | Event | Action | New behavior |
 |---|---|---|
-| `STATUS.FINISHED` / `STATUS.SKIPPED` | any | `onFinish(currentTour)` — unchanged, early return |
+| `STATUS.FINISHED` / `STATUS.SKIPPED` | any | `onFinish(activeTour!)` — unchanged, early return |
 | `EVENTS.STEP_AFTER` | `ACTIONS.NEXT` | `setRunTour(false)` → `setActiveTab(stepTabs[nextIndex])` → `setStepIndex(nextIndex)` directly |
 | `EVENTS.STEP_AFTER` | `ACTIONS.PREV` | `setRunTour(false)` → `setActiveTab(stepTabs[prevIndex])` → `setStepIndex(prevIndex)` directly |
 | `EVENTS.TARGET_NOT_FOUND` | any | Force-advance: same behavior as NEXT (skip broken step) |
