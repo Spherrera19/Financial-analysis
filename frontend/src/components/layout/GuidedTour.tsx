@@ -170,6 +170,7 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
       showSkipButton={true}
       showProgress={true}
       disableScrolling={false}
+      disableOverlayClose={true}
       spotlightClicks={false}
       callback={handleCallback}
       locale={{ last: 'Finish', skip: 'Skip tour' }}
