@@ -4,6 +4,7 @@ These are the strict serialization layer between Python processing and data.json
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import SQLModel as _SQLModel, Field as _Field
@@ -195,11 +196,95 @@ class CategoryRow(BaseModel):
 class CategoryCreate(BaseModel):
     name:           str
     monthly_budget: float = 0.0
+    ledger_id:      int | None = None
 
 
 class CategoryUpdate(BaseModel):
     name:           str | None = None
     monthly_budget: float | None = None
+
+
+# ---------------------------------------------------------------------------
+# Household profiles  (Phase 7 Step 1)
+# ---------------------------------------------------------------------------
+
+class UserProfile(_SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "userprofile"
+    id:         Optional[int] = _Field(default=None, primary_key=True)
+    name:       str           = ""
+    is_primary: bool          = _Field(default=False)
+
+
+class UserProfileUpdate(BaseModel):
+    """Partial update for a UserProfile."""
+    name:       str  | None = None
+    is_primary: bool | None = None
+
+
+# ---------------------------------------------------------------------------
+# Entity-Ledger Architecture  (Phase 7 Step 2)
+# ---------------------------------------------------------------------------
+
+class Ledger(_SQLModel, table=True):  # type: ignore[call-arg]
+    """A financial workspace — Household, personal, or business."""
+    __tablename__ = "ledger"
+    id:   Optional[int] = _Field(default=None, primary_key=True)
+    name: str           = ""
+    type: str           = ""   # 'joint' | 'personal' | 'business'
+
+
+class LedgerAccess(_SQLModel, table=True):  # type: ignore[call-arg]
+    """Junction: which users can see which ledgers, and in what role."""
+    __tablename__ = "ledgeraccess"
+    user_id:   int = _Field(foreign_key="userprofile.id", primary_key=True)
+    ledger_id: int = _Field(foreign_key="ledger.id",      primary_key=True)
+    role:      str = _Field(default="viewer")   # 'admin' | 'viewer'
+
+
+class LedgerTransfer(_SQLModel, table=True):  # type: ignore[call-arg]
+    """Records money / debt movements between two ledgers."""
+    __tablename__ = "ledgertransfer"
+    id:             Optional[int] = _Field(default=None, primary_key=True)
+    from_ledger_id: int           = _Field(foreign_key="ledger.id")
+    to_ledger_id:   int           = _Field(foreign_key="ledger.id")
+    amount:         float         = 0.0
+    description:    str           = ""
+    created_at:     datetime      = _Field(default_factory=datetime.utcnow)
+
+
+class Notification(_SQLModel, table=True):  # type: ignore[call-arg]
+    """In-app notification attached to a ledger."""
+    __tablename__ = "notification"
+    id:        Optional[int] = _Field(default=None, primary_key=True)
+    ledger_id: int           = _Field(foreign_key="ledger.id")
+    message:   str           = ""
+    is_read:   bool          = _Field(default=False)
+
+
+# Pydantic schemas for the Ledger API
+
+class LedgerCreate(BaseModel):
+    name:             str
+    type:             str
+    creator_user_id:  int
+
+
+class LedgerShare(BaseModel):
+    user_id: int
+    role:    str = "viewer"
+
+
+class LedgerMember(BaseModel):
+    user_id: int
+    name:    str
+    role:    str   # 'admin' | 'viewer'
+
+
+class LedgerWithMembers(BaseModel):
+    id:      int
+    name:    str
+    type:    str
+    members: list[LedgerMember]
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +296,8 @@ class RetirementAccount(_SQLModel, table=True):  # type: ignore[call-arg]
     id:                    Optional[int]   = _Field(default=None, primary_key=True)
     account_name:          str             = ""
     account_type:          str             = ""
-    owner:                 str             = ""
+    # ledger_id replaces user_id (Phase 7 Step 2). Financial data belongs to a Ledger.
+    ledger_id:             Optional[int]   = _Field(default=None, foreign_key="ledger.id")
     annual_limit:          float           = 0.0
     ytd_contributions:     float           = _Field(default=0.0)
     employer_match_amount: Optional[float] = None
@@ -221,7 +307,7 @@ class RetirementAccount(_SQLModel, table=True):  # type: ignore[call-arg]
 class RetirementCreate(BaseModel):
     account_name:          str
     account_type:          str
-    owner:                 str
+    ledger_id:             int | None = None
     annual_limit:          float = Field(..., gt=0)
     ytd_contributions:     float = 0.0
     employer_match_amount: float | None = None
@@ -231,11 +317,62 @@ class RetirementCreate(BaseModel):
 class RetirementUpdate(BaseModel):
     account_name:          str   | None = None
     account_type:          str   | None = None
-    owner:                 str   | None = None
+    ledger_id:             int   | None = None
     annual_limit:          float | None = Field(None, gt=0)
     ytd_contributions:     float | None = None
     employer_match_amount: float | None = None
     employer_match_target: float | None = None
+
+
+# ---------------------------------------------------------------------------
+# Income sources  (Phase 7 Step 1)
+# ---------------------------------------------------------------------------
+
+class IncomeSource(_SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "incomesource"
+    id:                      Optional[int] = _Field(default=None, primary_key=True)
+    ledger_id:               Optional[int] = _Field(default=None, foreign_key="ledger.id")
+    source_type:             str           = ""   # 'W2' | 'LLC' | '1099'
+    gross_amount:            float         = _Field(default=0.0)
+    estimated_withholdings:  float         = _Field(default=0.0)
+
+
+class IncomeSourceCreate(BaseModel):
+    ledger_id:              int | None = None
+    source_type:            str
+    gross_amount:           float = 0.0
+    estimated_withholdings: float = 0.0
+
+
+class IncomeSourceUpdate(BaseModel):
+    """Partial update for an IncomeSource."""
+    source_type:            str   | None = None
+    gross_amount:           float | None = None
+    estimated_withholdings: float | None = None
+
+
+# ---------------------------------------------------------------------------
+# Tax profile  (Phase 6 Step 2)
+# ---------------------------------------------------------------------------
+
+class TaxProfileUpdate(BaseModel):
+    """Partial update for the singleton TaxProfile (id=1)."""
+    filing_status:                  str   | None = None
+    gross_w2_income:                float | None = None
+    estimated_annual_withholdings:  float | None = None
+
+
+class TaxEstimateResponse(BaseModel):
+    """Full tax estimate breakdown returned by GET /api/tax/estimate."""
+    filing_status:                  str
+    gross_w2_income:                float
+    pre_tax_retirement_deductions:  float   # sum of 401k + HSA ytd_contributions
+    agi:                            float   # gross - pre_tax_retirement_deductions
+    standard_deduction:             float   # 29200 for MFJ 2024
+    taxable_income:                 float   # max(0, agi - standard_deduction)
+    estimated_federal_tax:          float
+    estimated_annual_withholdings:  float
+    net_owed:                       float   # tax - withholdings; negative = refund
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +421,7 @@ class Category(_SQLModel, table=True):  # type: ignore[call-arg]
     id:             Optional[int] = _Field(default=None, primary_key=True)
     name:           str           = _Field(default="", unique=True)
     monthly_budget: float         = _Field(default=0.0)
+    ledger_id:      Optional[int] = _Field(default=None, foreign_key="ledger.id")
 
 
 class AccountHistoryRecord(_SQLModel, table=True):  # type: ignore[call-arg]
@@ -312,9 +450,10 @@ class TransactionRecord(_SQLModel, table=True):  # type: ignore[call-arg]
     category:    str           = ""
     account:     str           = ""
     amount:      float         = 0.0
-    owner:       str           = ""
+    owner:       str           = ""   # kept for CSV compat; ledger_id is the canonical FK
     type:        str           = ""   # 'I'|'N'|'O'|'D'|'X'|'T'
     is_checking: int           = _Field(default=0)
+    ledger_id:   Optional[int] = _Field(default=None, foreign_key="ledger.id")
 
 
 class EquityGrantRecord(_SQLModel, table=True):  # type: ignore[call-arg]
@@ -326,3 +465,13 @@ class EquityGrantRecord(_SQLModel, table=True):  # type: ignore[call-arg]
     total_shares:     float         = 0.0
     vesting_schedule: str           = ""   # JSON: [{"date": "YYYY-MM-DD", "shares": 50.0}, ...]
     source:           str           = _Field(default="manual")
+    ledger_id:        Optional[int] = _Field(default=None, foreign_key="ledger.id")
+
+
+class TaxProfile(_SQLModel, table=True):  # type: ignore[call-arg]
+    """Singleton row (id=1) — user-editable tax inputs."""
+    __tablename__ = "tax_profiles"
+    id:                            Optional[int] = _Field(default=None, primary_key=True)
+    filing_status:                 str           = _Field(default="MFJ")
+    gross_w2_income:               float         = _Field(default=0.0)
+    estimated_annual_withholdings: float         = _Field(default=0.0)
