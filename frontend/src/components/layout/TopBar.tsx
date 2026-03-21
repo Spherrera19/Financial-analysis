@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Copy, Download, CalendarDays, ChevronDown, Check, Building2 } from 'lucide-react';
-import type { PeriodKey } from '../../types';
+import { Copy, Download, CalendarDays, ChevronDown, Check, Building2, User } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import type { PeriodKey, UserProfile } from '../../types';
 import { useLedger } from '../../context/LedgerContext';
+import { useUser } from '../../context/UserContext';
 
 interface TopBarProps {
   activePeriod: PeriodKey;
@@ -268,6 +270,9 @@ export function TopBar({
         </div>
       )}
 
+      {/* User switcher */}
+      <UserSwitcherDropdown />
+
       {/* Export buttons + as-of date */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, marginLeft: 'auto' }}>
         <span
@@ -341,6 +346,94 @@ export function TopBar({
           Download .md
         </button>
       </div>
+    </div>
+  );
+}
+
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+function UserSwitcherDropdown() {
+  const { activeUserId, setActiveUserId } = useUser();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const { data: profiles = [] } = useQuery<UserProfile[]>({
+    queryKey: ['profiles'],
+    queryFn: () => fetch(`${API}/api/profiles`).then(r => r.json()),
+  });
+
+  useEffect(() => {
+    function handle(e: MouseEvent | KeyboardEvent) {
+      if (e.type === 'keydown' && (e as KeyboardEvent).key === 'Escape') { setOpen(false); return; }
+      if (e.type === 'mousedown' && ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) {
+      document.addEventListener('mousedown', handle);
+      document.addEventListener('keydown', handle);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handle);
+      document.removeEventListener('keydown', handle);
+    };
+  }, [open]);
+
+  const activeName = profiles.find(p => p.id === activeUserId)?.name ?? 'User';
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          minHeight: 44, padding: '0 12px', borderRadius: 8,
+          border: '1px solid var(--border-subtle)', background: 'var(--bg-card)',
+          color: 'var(--text-primary)', cursor: 'pointer',
+          fontSize: '0.875rem', fontWeight: 500, outline: 'none',
+          transition: 'border-color 0.15s ease',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-blue)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-subtle)'; }}
+      >
+        <User size={15} strokeWidth={2} />
+        {activeName}
+        <ChevronDown size={14} strokeWidth={2}
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }}
+        />
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0,
+          background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
+          borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          minWidth: 180, zIndex: 40, overflow: 'hidden',
+        }}>
+          {profiles.map(profile => (
+            <button
+              key={profile.id}
+              onClick={() => { setActiveUserId(profile.id); setOpen(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', minHeight: 44, padding: '0 14px',
+                border: 'none', background: 'transparent', cursor: 'pointer',
+                color: profile.id === activeUserId ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: profile.id === activeUserId ? 600 : 400,
+                fontSize: '0.875rem', textAlign: 'left', transition: 'background 0.1s ease',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--text-muted) 10%, transparent)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            >
+              <span>
+                {profile.name}
+                {profile.is_primary && (
+                  <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', opacity: 0.5 }}>primary</span>
+                )}
+              </span>
+              {profile.id === activeUserId && <Check size={14} strokeWidth={2.5} />}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
