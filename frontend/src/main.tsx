@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/layout'
 import { LedgerProvider } from './context/LedgerContext'
+import { UserProvider } from './context/UserContext'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,9 +20,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <LedgerProvider>
-          <App />
-        </LedgerProvider>
+        <UserProvider>
+          <LedgerProvider>
+            <App />
+          </LedgerProvider>
+        </UserProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>,

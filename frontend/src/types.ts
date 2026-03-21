@@ -192,6 +192,10 @@ export interface UserProfile {
   is_primary: boolean;
 }
 
+export interface UserProfileCreate {
+  name: string;
+}
+
 export interface IncomeSource {
   id:                     number;
   user_id:                number;
