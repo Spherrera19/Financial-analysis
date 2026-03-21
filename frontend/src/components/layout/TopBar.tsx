@@ -359,7 +359,9 @@ function UserSwitcherDropdown() {
 
   const { data: profiles = [] } = useQuery<UserProfile[]>({
     queryKey: ['profiles'],
-    queryFn: () => fetch(`${API}/api/profiles`).then(r => r.json()),
+    queryFn: () =>
+      fetch(`${API}/api/profiles`)
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
   });
 
   useEffect(() => {
