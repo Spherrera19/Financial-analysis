@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Theme } from '../lib/theme';
-import type { UserProfile, Ledger } from '../types';
+import type { UserProfile, UserProfileCreate, Ledger } from '../types';
 import { ShareLedgerModal } from '../components/modals/ShareLedgerModal';
+import { useUser } from '../context/UserContext';
 
 interface SettingsTabProps {
   activeTheme: Theme;
@@ -229,6 +230,30 @@ function HouseholdMembersSection() {
     onError: (e: Error) => setSaveError(e.message),
   });
 
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName]         = useState('');
+  const [addError, setAddError]       = useState<string | null>(null);
+
+  const addMutation = useMutation({
+    mutationFn: (body: UserProfileCreate) =>
+      fetch(`${API}/api/profiles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => {
+        if (!r.ok) return r.json().then((e: { detail?: string }) => Promise.reject(new Error(e.detail ?? `HTTP ${r.status}`)));
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['ledgers'] });
+      setShowAddForm(false);
+      setNewName('');
+      setAddError(null);
+    },
+    onError: (e: Error) => setAddError(e.message),
+  });
+
   const openEdit = (profile: UserProfile) => {
     setEditingId(profile.id);
     setEditName(profile.name);
@@ -372,6 +397,77 @@ function HouseholdMembersSection() {
           )}
         </div>
       ))}
+
+      {/* Add Member */}
+      {!showAddForm ? (
+        <button
+          onClick={() => setShowAddForm(true)}
+          style={{
+            marginTop: '0.5rem',
+            padding: '0.5rem 1rem',
+            borderRadius: '0.5rem',
+            border: '1px dashed var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            width: '100%',
+          }}
+        >
+          + Add Member
+        </button>
+      ) : (
+        <div style={{
+          display: 'flex', gap: '0.5rem', alignItems: 'center',
+          marginTop: '0.5rem', flexWrap: 'wrap',
+        }}>
+          <input
+            autoFocus
+            placeholder="New member name…"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && newName.trim()) addMutation.mutate({ name: newName.trim() });
+              if (e.key === 'Escape') { setShowAddForm(false); setNewName(''); }
+            }}
+            style={{
+              flex: 1, padding: '0.375rem 0.625rem', borderRadius: '0.375rem',
+              border: '1px solid var(--accent-blue)',
+              background: 'var(--bg-base)', color: 'var(--text-primary)',
+              fontSize: '0.9375rem', outline: 'none', minWidth: 160,
+            }}
+          />
+          <button
+            onClick={() => { if (newName.trim()) addMutation.mutate({ name: newName.trim() }); }}
+            disabled={addMutation.isPending || !newName.trim()}
+            style={{
+              padding: '0.375rem 0.875rem', borderRadius: '0.375rem', border: 'none',
+              background: 'var(--accent-blue)', color: '#fff',
+              fontSize: '0.8125rem', fontWeight: 600,
+              cursor: addMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: addMutation.isPending ? 0.7 : 1,
+            }}
+          >
+            {addMutation.isPending ? 'Adding…' : 'Add'}
+          </button>
+          <button
+            onClick={() => { setShowAddForm(false); setNewName(''); setAddError(null); }}
+            style={{
+              padding: '0.375rem 0.75rem', borderRadius: '0.375rem',
+              border: '1px solid var(--border-subtle)', background: 'transparent',
+              color: 'var(--text-secondary)', fontSize: '0.8125rem', cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          {addError && (
+            <span style={{ width: '100%', fontSize: '0.75rem', color: 'var(--accent-red)' }}>
+              {addError}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -380,13 +476,14 @@ function HouseholdMembersSection() {
 // Workspace Access section
 // ---------------------------------------------------------------------------
 
-function WorkspaceAccessSection({ profiles }: { profiles: UserProfile[] }) {
+function WorkspaceAccessSection() {
+  const { activeUserId } = useUser();
   const [selectedLedger, setSelectedLedger] = useState<{ id: number; name: string } | null>(null);
   const [isModalOpen, setIsModalOpen]       = useState(false);
 
   const { data: ledgers = [], isLoading } = useQuery<Ledger[]>({
-    queryKey: ['ledgers'],
-    queryFn: () => fetch(`${API}/api/ledgers?user_id=1`).then(r => {
+    queryKey: ['ledgers', activeUserId],
+    queryFn: () => fetch(`${API}/api/ledgers?user_id=${activeUserId}`).then(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     }),
@@ -443,22 +540,24 @@ function WorkspaceAccessSection({ profiles }: { profiles: UserProfile[] }) {
                 </span>
                 <span style={typeBadgeStyle(ledger.type)}>{ledger.type}</span>
               </div>
-              <button
-                onClick={() => { setSelectedLedger({ id: ledger.id, name: ledger.name }); setIsModalOpen(true); }}
-                style={{
-                  padding: '0.375rem 0.875rem',
-                  borderRadius: '0.375rem',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                Manage Access
-              </button>
+              {ledger.members.some(m => m.user_id === activeUserId && m.role === 'admin') && (
+                <button
+                  onClick={() => { setSelectedLedger({ id: ledger.id, name: ledger.name }); setIsModalOpen(true); }}
+                  style={{
+                    padding: '0.375rem 0.875rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  Manage Access
+                </button>
+              )}
             </div>
 
             {/* Members list */}
@@ -498,7 +597,6 @@ function WorkspaceAccessSection({ profiles }: { profiles: UserProfile[] }) {
         onClose={() => setIsModalOpen(false)}
         ledgerId={selectedLedger?.id ?? 0}
         ledgerName={selectedLedger?.name ?? ''}
-        profiles={profiles}
       />
     </>
   );
@@ -1106,16 +1204,6 @@ function SystemLogsSection() {
 export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsTabProps) {
   const [globalErrors, setGlobalErrors] = useState<string[]>([]);
 
-  // Fetched here so WorkspaceAccessSection can receive profiles without a second request
-  // (React Query deduplicates: HouseholdMembersSection uses the same queryKey)
-  const { data: profiles = [] } = useQuery<UserProfile[]>({
-    queryKey: ['profiles'],
-    queryFn: () => fetch(`${API}/api/profiles`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    }),
-  });
-
   const addError = useCallback((msg: string) => {
     console.error('[SettingsTab]', msg);
     setGlobalErrors(prev => [...prev, msg]);
@@ -1179,7 +1267,7 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh }: SettingsT
         Manage which household members have access to each financial workspace. Admins can
         edit data; Viewers can only read.
       </p>
-      <WorkspaceAccessSection profiles={profiles} />
+      <WorkspaceAccessSection />
 
       <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
