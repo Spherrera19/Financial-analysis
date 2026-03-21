@@ -138,7 +138,6 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
 
     // Handle tour completion or skip first — no navigation needed.
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-      setStepIndex(0);
       onFinish(currentTour);
       return;
     }
@@ -147,10 +146,10 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
     if (type === EVENTS.STEP_AFTER) {
       if (action === ACTIONS.NEXT) {
         const nextIndex = index + 1;
-        if (nextIndex < stepTabs.length) {
+        if (nextIndex < steps.length) {
           setActiveTab(stepTabs[nextIndex]);
+          setTimeout(() => setStepIndex(nextIndex), 400);
         }
-        setTimeout(() => setStepIndex(nextIndex), 400);
       } else if (action === ACTIONS.PREV) {
         const prevIndex = index - 1;
         if (prevIndex >= 0) {
