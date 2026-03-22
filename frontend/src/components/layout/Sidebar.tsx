@@ -118,7 +118,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                   return (
                     <button
                       key={id}
-                      id={`tour-nav-${id}`}
+                      id={id === 'settings' ? 'tour-settings-tab' : `tour-nav-${id}`}
                       onClick={() => onTabChange(id)}
                       style={{
                         position: 'relative',

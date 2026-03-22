@@ -15,13 +15,19 @@ interface GuidedTourProps {
 // Maps each step index to the tab that must be active for the target to exist in the DOM.
 // TopBar (#tour-period-filter, #tour-ledger-switcher) is only rendered on data tabs — 'overview' works.
 export const BASIC_STEP_TABS: TabKey[] = [
-  'overview',   // 0 — #tour-period-filter   (TopBar, visible on all data tabs)
-  'overview',   // 1 — #tour-ledger-switcher (TopBar, visible on all data tabs)
-  'overview',   // 2 — #tour-net-worth-kpi
-  'cashflow',   // 3 — #tour-cashflow-chart
-  'spending',   // 4 — #tour-spending-donut
-  'debt',       // 5 — #tour-debt-trend
-  'budget',     // 6 — #tour-budget-bars
+  'overview',     // 0: Period Filter
+  'overview',     // 1: Ledger Switcher
+  'overview',     // 2: Net Worth
+  'overview',     // 3: Sankey Chart
+  'cashflow',     // 4: Flow Chart
+  'spending',     // 5: Donut Chart
+  'spending',     // 6: Category Bars
+  'debt',         // 7: Trend Line
+  'equity',       // 8: KPI Cards
+  'tax',          // 9: KPI Cards
+  'budget',       // 10: Pacing Bars
+  'transactions', // 11: Ledger Table
+  'transactions', // 12: Settings Button (Sidebar is visible from Transactions)
 ];
 
 // Advanced tour tab routing:
@@ -55,50 +61,92 @@ const BASIC_STEPS: Step[] = [
   {
     target: '#tour-period-filter',
     title: 'Time Period Filter',
-    content: 'Start here. All charts and figures respond to this selector — toggle between the current month, last month, or the past quarter to slice your data in time.',
+    content: 'Start here. Select the timeframe for your analysis. All charts, budgets, and cash flow data instantly recalculate based on this selection.',
     placement: 'bottom',
     disableBeacon: true,
   },
   {
     target: '#tour-ledger-switcher',
     title: 'Workspace Switcher',
-    content: 'Switch between your Personal, Joint, and Business financial workspaces. Each ledger holds its own transactions, balances, and settings — fully isolated from the others.',
+    content: 'This is a true multi-tenant platform. Toggle between Personal, Joint, or Business ledgers. Each workspace has completely isolated data.',
     placement: 'bottom',
     disableBeacon: true,
   },
   {
     target: '#tour-net-worth-kpi',
-    title: 'Net Worth',
-    content: 'Your complete financial picture. Net Worth is your total assets minus liabilities — the single most important number on the dashboard. Watch it grow as you pay down debt and build savings.',
+    title: 'Overview: Net Worth',
+    content: 'Welcome to the Overview tab. This is your financial true north. It aggregates your cash, equity, and retirement accounts, subtracting all tracked debt to give you a single health metric.',
     placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '#tour-sankey-chart',
+    title: 'Overview: Money Flow',
+    content: 'This Sankey diagram maps exactly how your gross income cascades down into taxes, necessary expenses, discretionary spending, and finally, your net savings.',
+    placement: 'top',
     disableBeacon: true,
   },
   {
     target: '#tour-cashflow-chart',
-    title: 'Cash Flow Velocity',
-    content: 'This chart visualizes your historical Cash Flow velocity. It tracks your total inflows versus outflows over time so you can easily spot months where you burned more cash than you earned.',
-    placement: 'bottom',
+    title: 'Cash Flow: Velocity Tracking',
+    content: 'The Cash Flow tab tracks the velocity of your money. This chart visualizes month-over-month inflows versus outflows so you can easily spot periods where you burned more cash than you earned.',
+    placement: 'top',
     disableBeacon: true,
   },
   {
     target: '#tour-spending-donut',
-    title: 'Spending Breakdown',
-    content: 'Your spending divided into Necessities (housing, utilities, insurance), Optional (dining, entertainment), and Debt payments. Click any segment to drill into the exact transactions behind it.',
+    title: 'Spending: Expense Breakdown',
+    content: 'The Spending tab analyzes your outflows. This donut splits your expenses into Necessities (housing, insurance) and Optional (dining, entertainment) to check your lifestyle ratios.',
     placement: 'bottom',
     disableBeacon: true,
   },
   {
+    target: '#tour-category-bars',
+    title: 'Spending: Category Drill-down',
+    content: 'Scroll down to see exactly where your money goes. Every swipe and deposit is auto-categorized and charted against your historical averages.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  {
     target: '#tour-debt-trend',
-    title: 'Debt Trend',
-    content: 'Your total debt balance over time. The trend line shows whether you\'re making meaningful progress — a consistently downward slope means your payoff strategy is working.',
+    title: 'Debt: Payoff Forecaster',
+    content: 'The Debt tab is your dedicated payoff forecaster. Simulate strategies (Snowball vs Avalanche) and watch this trend line to see exactly when you\'ll be debt-free.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  {
+    target: '#tour-equity-kpi',
+    title: 'Equity & Options',
+    content: 'The Equity tab tracks your unvested stock options and RSUs. It forecasts your future liquidity events based on current, real-time market prices.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '#tour-tax-cards',
+    title: 'Tax & Retirement',
+    content: 'This dual-engine tab provides live tax liability estimation and tracks your 401k/IRA balances, automatically updating as you log new income.',
     placement: 'bottom',
     disableBeacon: true,
   },
   {
     target: '#tour-budget-bars',
-    title: 'Budget Pacing',
-    content: 'Your real-time Budget Pacing. These health bars show exactly how much discretionary income you have left in each category for the current period, keeping your spending on track.',
+    title: 'Budget: Live Pacing',
+    content: 'The Budget tab keeps you on track. These real-time health bars show exactly how much discretionary income remains in each category for the current period.',
     placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '#tour-transaction-table',
+    title: 'Transactions: The Raw Ledger',
+    content: 'The Transactions tab contains the raw data underlying everything. Easily search, re-categorize, and filter thousands of individual transactions here.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  {
+    target: '#tour-settings-tab',
+    title: 'Settings & Configurations',
+    content: 'Finally, the Settings tab! Head over here to import CSVs, invite family members to your workspaces, and restart this tutorial at any time.',
+    placement: 'right',
     disableBeacon: true,
   },
 ];
