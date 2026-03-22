@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import Joyride, { STATUS, ACTIONS, EVENTS } from 'react-joyride';
 import type { CallBackProps, Step } from 'react-joyride';
 import type { TourType } from '../../hooks/useTour';
@@ -126,36 +127,107 @@ const ADVANCED_STEPS: Step[] = [
   },
 ];
 
-export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setStepIndex }: GuidedTourProps) {
-  if (!activeTour) return null;
+// Maximum poll attempts before auto-advancing (50 × 100ms = 5 seconds).
+const MAX_POLL_ATTEMPTS = 50;
 
-  const currentTour = activeTour;
-  const steps    = currentTour === 'basic' ? BASIC_STEPS    : ADVANCED_STEPS;
-  const stepTabs = currentTour === 'basic' ? BASIC_STEP_TABS : ADVANCED_STEP_TABS;
+export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setStepIndex }: GuidedTourProps) {
+  // runTour drives Joyride's run prop. The polling interceptor (useEffect below)
+  // sets this false on every step change and only sets it true once the target element
+  // is confirmed to exist and have a non-zero rendered width.
+  const [runTour, setRunTour] = useState(false);
+
+  // Derived before the early return so the useEffect can reference them.
+  // When activeTour is null these default to ADVANCED_* but the effect guards on
+  // !activeTour before accessing them.
+  const steps    = activeTour === 'basic' ? BASIC_STEPS    : ADVANCED_STEPS;
+  const stepTabs = activeTour === 'basic' ? BASIC_STEP_TABS : ADVANCED_STEP_TABS;
+
+  // Polling interceptor. Fires on every activeTour / stepIndex change.
+  // Pauses Joyride immediately, then polls document.querySelector until the target
+  // element is in the DOM and has a non-zero rendered width (i.e. has actually painted).
+  // Cleans up the interval on re-run or unmount to prevent stale callbacks.
+  useEffect(() => {
+    if (!activeTour) {
+      setRunTour(false);
+      return;
+    }
+
+    setRunTour(false); // pause while we wait for the target
+
+    const targetSelector = steps[stepIndex]?.target as string;
+    let attempts = 0;
+
+    const intervalId = setInterval(() => {
+      attempts++;
+      const el = document.querySelector(targetSelector);
+
+      if (el && (el as HTMLElement).getBoundingClientRect().width > 0) {
+        setRunTour(true);
+        clearInterval(intervalId);
+        return;
+      }
+
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        clearInterval(intervalId);
+        console.warn(`[GuidedTour] Target "${targetSelector}" not found after 5s — auto-advancing.`);
+
+        const nextIndex = stepIndex + 1;
+        if (nextIndex < steps.length) {
+          setActiveTab(stepTabs[nextIndex]);
+          setStepIndex(nextIndex);
+        } else {
+          // activeTour is guaranteed non-null: the !activeTour guard above
+          // prevents the interval from ever starting when activeTour is null.
+          onFinish(activeTour!);
+        }
+      }
+    }, 100);
+
+    return () => clearInterval(intervalId); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTour, stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Early return AFTER hooks (React rules of hooks require unconditional hook calls).
+  if (!activeTour) return null;
 
   function handleCallback(data: CallBackProps) {
     const { action, index, status, type } = data;
 
     // Handle tour completion or skip first — no navigation needed.
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-      onFinish(currentTour);
+      onFinish(activeTour!);
       return;
     }
 
-    // Intercept next/back to navigate tabs before advancing the step index.
+    // Intercept next/back: pause Joyride, navigate to the required tab, set the new
+    // step index. The polling useEffect takes over from here — no setTimeout needed.
     if (type === EVENTS.STEP_AFTER) {
       if (action === ACTIONS.NEXT) {
         const nextIndex = index + 1;
         if (nextIndex < steps.length) {
+          setRunTour(false);
           setActiveTab(stepTabs[nextIndex]);
-          setTimeout(() => setStepIndex(nextIndex), 400);
+          setStepIndex(nextIndex);
         }
       } else if (action === ACTIONS.PREV) {
         const prevIndex = index - 1;
         if (prevIndex >= 0) {
+          setRunTour(false);
           setActiveTab(stepTabs[prevIndex]);
-          setTimeout(() => setStepIndex(prevIndex), 400);
+          setStepIndex(prevIndex);
         }
+      }
+    }
+
+    // Safety net: if Joyride fires TARGET_NOT_FOUND despite polling confirming the
+    // element existed, force-advance to the next step rather than freezing.
+    if (type === EVENTS.TARGET_NOT_FOUND) {
+      const nextIndex = index + 1;
+      if (nextIndex < steps.length) {
+        setRunTour(false);
+        setActiveTab(stepTabs[nextIndex]);
+        setStepIndex(nextIndex);
+      } else {
+        onFinish(activeTour!);
       }
     }
   }
@@ -165,7 +237,7 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
       key={activeTour}
       steps={steps}
       stepIndex={stepIndex}
-      run={true}
+      run={runTour}
       continuous={true}
       showSkipButton={true}
       showProgress={true}
