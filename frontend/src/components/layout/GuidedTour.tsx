@@ -154,7 +154,8 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
 
     setRunTour(false); // pause while we wait for the target
 
-    const targetSelector = steps[stepIndex]?.target as string;
+    const targetSelector = steps[stepIndex]?.target as string | undefined;
+    if (!targetSelector) { setRunTour(false); return; }
     let attempts = 0;
 
     const intervalId = setInterval(() => {
