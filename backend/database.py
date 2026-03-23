@@ -6,7 +6,7 @@ Usage:
     conn = init_db()          # uses default path (finance.db in project root)
 
 `engine` is the SQLModel/SQLAlchemy engine — used by Session-based CRUD routers via get_db().
-`init_db()` returns a raw sqlite3.Connection — used by get_raw_db() and engine.py functions.
+`init_db()` returns a raw sqlite3.Connection — used by engine.py functions and the bridge pattern in routers/dashboard.py and routers/equity.py.
 `create_db_tables()` is called on FastAPI startup to register tables before first request.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def create_db_tables() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Raw sqlite3 interface — used by get_raw_db(), ingest.py, and engine.py
+# Raw sqlite3 interface — used by ingest.py, engine.py, and the bridge callers in routers/dashboard.py and routers/equity.py
 # ---------------------------------------------------------------------------
 
 def init_db(db_path: str | Path = DB_PATH) -> sqlite3.Connection:

@@ -50,21 +50,23 @@ def create_equity_grant(
 
     result = session.execute(
         text("""
-        INSERT INTO equity_grants (ticker, grant_date, total_shares, vesting_schedule)
-        VALUES (:ticker, :grant_date, :total_shares, :vesting_schedule)
+        INSERT INTO equity_grants (ticker, grant_date, total_shares, vesting_schedule, source)
+        VALUES (:ticker, :grant_date, :total_shares, :vesting_schedule, :source)
         """),
         {
             "ticker":            body.ticker.upper().strip(),
             "grant_date":        body.grant_date,
             "total_shares":      body.total_shares,
             "vesting_schedule":  schedule_json,
+            "source":            "manual",
         },
     )
     session.commit()
-    # NOTE: session.execute(text(...)) returns CursorResult — lastrowid is on .cursor.lastrowid
+    # NOTE: session.execute(text(...)) returns CursorResult. Use result.lastrowid directly —
+    # .cursor is None by the time the result is returned (cursor already closed by SQLAlchemy).
     return JSONResponse(
         status_code=201,
-        content={"id": result.cursor.lastrowid, "ticker": body.ticker.upper().strip()},
+        content={"id": result.lastrowid, "ticker": body.ticker.upper().strip()},
     )
 
 
