@@ -7,8 +7,11 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import text
+from sqlmodel import Session
 
-from backend.deps import get_raw_db
+from backend.database import engine as _sa_engine
+from backend.deps import get_db
 from backend.engine import build_equity_section
 from backend.equity_engine import parse_brokerage_csv
 
@@ -30,7 +33,7 @@ class NewEquityGrant(BaseModel):
 @router.post("/api/equity/grants")
 def create_equity_grant(
     body: NewEquityGrant,
-    conn: sqlite3.Connection = Depends(get_raw_db),
+    session: Session = Depends(get_db),
 ) -> JSONResponse:
     """
     Insert a new equity grant into equity_grants.
@@ -45,23 +48,28 @@ def create_equity_grant(
         for t in body.vesting_schedule
     ])
 
-    cursor = conn.execute(
-        """
+    result = session.execute(
+        text("""
         INSERT INTO equity_grants (ticker, grant_date, total_shares, vesting_schedule)
-        VALUES (?, ?, ?, ?)
-        """,
-        (body.ticker.upper().strip(), body.grant_date, body.total_shares, schedule_json),
+        VALUES (:ticker, :grant_date, :total_shares, :vesting_schedule)
+        """),
+        {
+            "ticker":            body.ticker.upper().strip(),
+            "grant_date":        body.grant_date,
+            "total_shares":      body.total_shares,
+            "vesting_schedule":  schedule_json,
+        },
     )
-    conn.commit()
-
+    session.commit()
+    # NOTE: session.execute(text(...)) returns CursorResult — lastrowid is on .cursor.lastrowid
     return JSONResponse(
         status_code=201,
-        content={"id": cursor.lastrowid, "ticker": body.ticker.upper().strip()},
+        content={"id": result.cursor.lastrowid, "ticker": body.ticker.upper().strip()},
     )
 
 
 @router.get("/api/equity")
-def get_equity(conn: sqlite3.Connection = Depends(get_raw_db)) -> JSONResponse:
+def get_equity(session: Session = Depends(get_db)) -> JSONResponse:
     """
     Return upcoming vest events enriched with GBM price projections and
     30% tax withholding applied to all share counts.
@@ -69,6 +77,14 @@ def get_equity(conn: sqlite3.Connection = Depends(get_raw_db)) -> JSONResponse:
     Stock history is fetched live from yfinance on each call.  The response
     includes three KPI scalars (total_unvested_value, next_vest_date,
     projected_net_cash_12m) plus the full upcoming_vests timeline array.
+
+    TODO: refactor build_equity_section() to accept Session when engine.py is migrated.
+    Bridge: borrow a raw DBAPI connection from the SQLAlchemy pool for the legacy engine call.
     """
-    section = build_equity_section(conn)
+    raw = _sa_engine.raw_connection()
+    raw.row_factory = sqlite3.Row
+    try:
+        section = build_equity_section(raw)
+    finally:
+        raw.close()
     return JSONResponse(content=section.model_dump())

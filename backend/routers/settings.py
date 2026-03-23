@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import tempfile
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlmodel import Session
 
-from backend.deps import get_raw_db, DIR, DB_PATH
+from backend.deps import get_db, DIR, DB_PATH
 from backend.equity_engine import parse_brokerage_csv
 from backend.ingest import build_database
 from backend.logger import LOG_FILE
@@ -24,7 +25,7 @@ _VALID_PREFIXES   = _FINANCE_PREFIXES + _EQUITY_PREFIXES
 @router.post("/api/upload/csv")
 async def upload_csv(
     files: list[UploadFile] = File(...),
-    conn: sqlite3.Connection = Depends(get_raw_db),
+    session: Session = Depends(get_db),
 ) -> JSONResponse:
     """
     Accept one or more CSV files and route them by filename prefix.
@@ -101,28 +102,29 @@ async def upload_csv(
         # Per-ticker upsert: only brokerage_csv rows are replaced
         tickers = {g["ticker"] for g in grants}
         for ticker in tickers:
-            conn.execute(
-                "DELETE FROM equity_grants WHERE ticker = ? AND source = 'brokerage_csv'",
-                (ticker,),
+            # DELETE existing brokerage_csv rows for this ticker:
+            session.execute(
+                text("DELETE FROM equity_grants WHERE ticker = :ticker AND source = 'brokerage_csv'"),
+                {"ticker": ticker},
             )
 
+        # INSERT each grant:
         for grant in grants:
-            conn.execute(
-                """
+            session.execute(
+                text("""
                 INSERT INTO equity_grants
                     (ticker, grant_date, total_shares, vesting_schedule, source)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    grant["ticker"],
-                    grant["grant_date"],
-                    grant["total_shares"],
-                    json.dumps(grant["vesting_schedule"]),
-                    grant["source"],
-                ),
+                VALUES (:ticker, :grant_date, :total_shares, :vesting_schedule, :source)
+                """),
+                {
+                    "ticker":            grant["ticker"],
+                    "grant_date":        grant["grant_date"],
+                    "total_shares":      grant["total_shares"],
+                    "vesting_schedule":  json.dumps(grant["vesting_schedule"]),
+                    "source":            grant["source"],
+                },
             )
-
-        conn.commit()
+        session.commit()
         grants_imported += len(grants)
         saved_equity.append(filename)
 
