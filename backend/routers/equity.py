@@ -13,7 +13,7 @@ from backend.database import engine as _sa_engine
 from backend.deps import get_db
 from backend.engine import build_equity_section
 from backend.equity_engine import parse_brokerage_csv
-from backend.models import VestTranche, NewEquityGrant
+from backend.models import NewEquityGrant
 
 router = APIRouter()
 

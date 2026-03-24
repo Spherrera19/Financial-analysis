@@ -15,8 +15,16 @@ class RoutingTarget(_SQLModel, table=True):  # type: ignore[call-arg]
     priority:       int           = _Field(default=99)
 
 
+class RoutingTargetInput(BaseModel):
+    """API write DTO for a single routing target. Mirrors RoutingTarget fields without ORM binding."""
+    name: str
+    monthly_amount: float
+    category: str
+    priority: int
+
+
 class RoutingUpdate(BaseModel):
-    targets: list[RoutingTarget]
+    targets: list[RoutingTargetInput]
 
 
 class CategoryRow(BaseModel):

@@ -30,7 +30,7 @@ class DebtProjection(BaseModel):
 class DebtSection(BaseModel):
     accounts: list[DebtAccount]
     trend: DebtTrend
-    projection: DebtProjection      # NEW — required field
+    projection: DebtProjection
 
 
 # --- DTOs migrated from routers/debt.py ---

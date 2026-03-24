@@ -1,7 +1,6 @@
 """Period data models (one per period key: current / last / past2 / quarter / year)."""
 from __future__ import annotations
 
-from typing import Tuple
 from pydantic import BaseModel
 
 from .shared import SankeyFlow
@@ -29,7 +28,7 @@ class PeriodData(BaseModel):
     chk_income: list[float]
     chk_outflow: list[float]
     # [necessity, optional, debt, other]
-    nec_opt_donut: Tuple[float, float, float, float]
+    nec_opt_donut: tuple[float, float, float, float]
     cat_labels: list[str]
     cat_values: list[float]
     src_labels: list[str]

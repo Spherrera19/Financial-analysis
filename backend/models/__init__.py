@@ -8,7 +8,7 @@ from .shared import Meta, Summary, Account, SankeyFlow, PeriodKey
 from .period import CashFlowWaterfall, PeriodData
 from .debt import DebtAccount, DebtTrend, PayoffScenario, DebtProjection, DebtSection, AccountTerm, DebtSettingsUpdate
 from .equity import StockScenarios, VestEvent, EquityGrant, EquityVestSummary, EquitySection, VestTranche, NewEquityGrant
-from .budget import RoutingTarget, RoutingUpdate, CategoryRow, CategoryCreate, CategoryUpdate
+from .budget import RoutingTarget, RoutingUpdate, RoutingTargetInput, CategoryRow, CategoryCreate, CategoryUpdate
 from .profiles_ledger import (
     UserProfile, UserProfileUpdate, UserProfileCreate,
     Ledger, LedgerAccess, LedgerTransfer, Notification,
