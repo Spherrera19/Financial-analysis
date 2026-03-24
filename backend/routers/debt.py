@@ -3,25 +3,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Session
 
 from backend.deps import get_db
 from backend.debt_engine import get_apr_for_account, get_default_min_payment
+from backend.models import AccountTerm, DebtSettingsUpdate
 
 router = APIRouter()
-
-
-class AccountTerm(BaseModel):
-    account_name: str           # full original name — PRIMARY KEY in account_terms
-    apr: float                  # decimal, e.g. 0.24 for 24%
-    min_payment: float          # fixed monthly minimum in dollars
-    display_name: str | None = None  # user nickname; None = show full name
-
-
-class DebtSettingsUpdate(BaseModel):
-    terms: list[AccountTerm]
 
 
 @router.get("/api/debt/settings")

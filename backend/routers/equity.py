@@ -6,7 +6,6 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Session
 
@@ -14,20 +13,9 @@ from backend.database import engine as _sa_engine
 from backend.deps import get_db
 from backend.engine import build_equity_section
 from backend.equity_engine import parse_brokerage_csv
+from backend.models import VestTranche, NewEquityGrant
 
 router = APIRouter()
-
-
-class VestTranche(BaseModel):
-    date:   str    # YYYY-MM-DD
-    shares: float
-
-
-class NewEquityGrant(BaseModel):
-    ticker:            str
-    grant_date:        str    # YYYY-MM-DD
-    total_shares:      float
-    vesting_schedule:  list[VestTranche]
 
 
 @router.post("/api/equity/grants")
