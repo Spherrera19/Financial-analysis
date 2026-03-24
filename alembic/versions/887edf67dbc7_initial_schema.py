@@ -11,6 +11,17 @@ from alembic import op
 import sqlalchemy as sa
 import sqlmodel
 
+# IMPORTANT — READ BEFORE RUNNING
+# This migration was STAMPED against an existing database, not applied from scratch.
+# It contains only schema normalization (batch_alter_table) — no CREATE TABLE statements.
+#
+# Fresh database setup: do NOT rely on `alembic upgrade head` to create tables.
+# Instead, use `create_db_tables()` from backend/database.py first, then stamp:
+#
+#     python -c "from backend.database import create_db_tables; create_db_tables()"
+#     alembic stamp head
+#
+# Running `alembic upgrade head` on an empty database WILL FAIL.
 
 # revision identifiers, used by Alembic.
 revision: str = '887edf67dbc7'

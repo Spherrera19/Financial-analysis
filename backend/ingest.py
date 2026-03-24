@@ -181,10 +181,15 @@ def build_database(
     conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'accounts_history');")
     conn.commit()
 
+    # ── Seed default lookup rows (routing targets, profiles, ledgers, etc.) ───
+    # Must run BEFORE the household query so the ledger table is populated.
+    print("\n[ingest] Running seeds...")
+    run_seeds(conn)
+
     # ── Resolve Household ledger_id for stamping imported rows ────────────────
-    # run_seeds() (called at end of this function) seeds the Household ledger, so
-    # the row is guaranteed to exist by the time callers use this connection.
-    # We assign all CSV-imported transactions to Household — the default shared workspace.
+    # run_seeds() (called just above) seeds the Household ledger, so the row is
+    # guaranteed to exist by this point. We assign all CSV-imported
+    # transactions to Household — the default shared workspace.
     _household = conn.execute(
         "SELECT id FROM ledger WHERE name='Household' LIMIT 1"
     ).fetchone()
@@ -237,10 +242,6 @@ def build_database(
     conn.commit()
     n_cats = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
     print(f"  categories           : {n_cats:>6} rows")
-
-    # ── Seed default lookup rows (routing targets, profiles, ledgers, etc.) ───
-    print("\n[ingest] Running seeds...")
-    run_seeds(conn)
 
     print("\n[ingest] Done.\n")
     return conn
