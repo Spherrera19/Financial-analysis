@@ -37,7 +37,7 @@ def get_dashboard(
     Bridge: borrow a raw DBAPI connection from the SQLAlchemy pool for the legacy analytics engine.
     """
     conn = _sa_engine.raw_connection()
-    conn.row_factory = sqlite3.Row
+    conn.driver_connection.row_factory = sqlite3.Row
     try:
         summary  = build_summary(conn)
         accounts = build_accounts(conn)

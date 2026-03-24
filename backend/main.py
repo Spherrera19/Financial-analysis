@@ -21,6 +21,7 @@ from starlette.requests import Request
 from backend.logger import get_logger
 from backend.database import create_db_tables, init_db, DB_PATH
 from backend.seeds import run_seeds
+from backend.config import settings
 
 log = get_logger("api")
 
@@ -42,23 +43,11 @@ app = FastAPI(title="Finance Dashboard API", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
-# Middleware — CORS first, then request logger (last-added = outermost)
+# Middleware — Order is CRITICAL. Last added = Outermost layer.
 # ---------------------------------------------------------------------------
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 class _RequestLogMiddleware(BaseHTTPMiddleware):
     """Log every request with method, path, status code, and elapsed time."""
-
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()
         response = await call_next(request)
@@ -72,8 +61,16 @@ class _RequestLogMiddleware(BaseHTTPMiddleware):
         )
         return response
 
-
+# 1. Add Logging Middleware FIRST (so it sits on the inside)
 app.add_middleware(_RequestLogMiddleware)
+
+# 2. Add CORS Middleware LAST (so it sits on the absolute outside)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------------------------------------------------------------------------

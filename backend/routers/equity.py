@@ -72,7 +72,7 @@ def get_equity(session: Session = Depends(get_db)) -> JSONResponse:
     Bridge: borrow a raw DBAPI connection from the SQLAlchemy pool for the legacy engine call.
     """
     raw = _sa_engine.raw_connection()
-    raw.row_factory = sqlite3.Row
+    raw.driver_connection.row_factory = sqlite3.Row
     try:
         section = build_equity_section(raw)
     finally:

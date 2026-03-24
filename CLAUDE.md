@@ -7,7 +7,7 @@ The long-term vision is a full **household and business wealth management platfo
 
 ## Tech Stack
 * **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Chart.js, @tanstack/react-query v5.
-* **Backend:** Python FastAPI (uvicorn) + `backend/` package. Pydantic v2, SQLite, Pandas.
+* **Backend:** Python FastAPI (uvicorn) + `backend/` package. Pydantic v2, pydantic-settings, SQLite, Pandas, Alembic.
 * **Data Handoff:** FastAPI serves `GET /api/dashboard` (bulk payload) and per-feature endpoints. React fetches via `useQuery` (BudgetTab, EquityTab) or raw `fetch` (App.tsx).
 * **Dependencies:** Managed via `requirements.txt`; install into `venv/` (`call venv\Scripts\activate`).
 * **Dev server:** `uvicorn backend.main:app --reload --port 8000` (backend) + `npx serve dist -p 3000` (frontend).
@@ -160,6 +160,7 @@ All tasks for Phase 1.5 (sidebar theming + responsive navigation) have been comp
 backend/
   __init__.py         — makes backend a Python package
   classify.py         — classification constants + helpers (shared source of truth)
+  config.py           — pydantic-settings Settings class (cors_origins, etc.); overridable via .env / env vars
   models.py           — Pydantic v2 models (mirrors frontend/src/types.ts exactly)
   database.py         — SQLite schema + init_db() factory
   ingest.py           — CSV → SQLite ETL (build_database(); wipe-and-reload)
