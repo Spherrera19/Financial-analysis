@@ -17,6 +17,7 @@ from pathlib import Path
 
 from backend.classify import TYPE_CODE, classify, is_checking
 from backend.database import init_db, sync_categories_from_transactions
+from backend.seeds import run_seeds
 
 # ---------------------------------------------------------------------------
 # Project root — one level above this file (backend/)
@@ -236,6 +237,10 @@ def build_database(
     conn.commit()
     n_cats = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
     print(f"  categories           : {n_cats:>6} rows")
+
+    # ── Seed default lookup rows (routing targets, profiles, ledgers, etc.) ───
+    print("\n[ingest] Running seeds...")
+    run_seeds(conn)
 
     print("\n[ingest] Done.\n")
     return conn

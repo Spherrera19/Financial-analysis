@@ -19,7 +19,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from backend.logger import get_logger
-from backend.database import create_db_tables
+from backend.database import create_db_tables, init_db, DB_PATH
+from backend.seeds import run_seeds
 
 log = get_logger("api")
 
@@ -28,7 +29,12 @@ from backend.routers import dashboard, budget, equity, debt, settings as setting
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_tables()          # create all SQLModel tables before first request
+    create_db_tables()          # ensure all SQLModel tables exist
+    conn = init_db(DB_PATH)
+    try:
+        run_seeds(conn)         # insert default rows if tables are empty
+    finally:
+        conn.close()
     yield
 
 
