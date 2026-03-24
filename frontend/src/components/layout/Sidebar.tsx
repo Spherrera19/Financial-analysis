@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -13,8 +14,6 @@ import {
 import type { TabKey } from '../../types';
 
 interface SidebarProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
   asOfDate?: string;
 }
 
@@ -37,7 +36,22 @@ const NAV_ITEMS: {
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
 
-export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
+/** Maps a TabKey to its URL path. 'overview' is the index route '/'. */
+function tabToPath(tab: TabKey): string {
+  return tab === 'overview' ? '/' : `/${tab}`;
+}
+
+export function Sidebar({ asOfDate }: SidebarProps) {
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  /** True when this tab's path matches the current URL. */
+  const isActive = (tab: TabKey): boolean => {
+    const path = tabToPath(tab);
+    // Use exact match for '/' to avoid matching every path
+    return path === '/' ? location.pathname === '/' : location.pathname === path;
+  };
+
   return (
     <>
       {/* ── Desktop nav rail (md+) ─────────────────────────────────────────── */}
@@ -114,12 +128,12 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
 
                 {/* Nav items in this section */}
                 {sectionItems.map(({ id, label, icon: Icon }) => {
-                  const isActive = activeTab === id;
+                  const active = isActive(id);
                   return (
                     <button
                       key={id}
                       id={id === 'settings' ? 'tour-settings-tab' : `tour-nav-${id}`}
-                      onClick={() => onTabChange(id)}
+                      onClick={() => navigate(tabToPath(id))}
                       style={{
                         position: 'relative',
                         display: 'flex',
@@ -134,11 +148,11 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                         cursor: 'pointer',
                         marginBottom: '0.25rem',
                         fontSize: '0.9375rem',
-                        fontWeight: isActive ? 600 : 400,
-                        background: isActive
+                        fontWeight: active ? 600 : 400,
+                        background: active
                           ? 'color-mix(in srgb, var(--accent-blue) 15%, transparent)'
                           : 'transparent',
-                        color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                        color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
                         transition: 'background 0.15s ease, color 0.15s ease',
                         outline: 'none',
                         whiteSpace: 'nowrap',
@@ -146,15 +160,15 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                         textAlign: 'left',
                       }}
                       onMouseEnter={e => {
-                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background =
+                        if (!active) (e.currentTarget as HTMLButtonElement).style.background =
                           'color-mix(in srgb, var(--text-muted) 10%, transparent)';
                       }}
                       onMouseLeave={e => {
-                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                        if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                       }}
                     >
                       <AnimatePresence>
-                        {isActive && (
+                        {active && (
                           <motion.span
                             layoutId="activeNav"
                             style={{
@@ -171,7 +185,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                           />
                         )}
                       </AnimatePresence>
-                      <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} style={{ flexShrink: 0 }} />
+                      <Icon size={18} strokeWidth={active ? 2.2 : 1.8} style={{ flexShrink: 0 }} />
                       {/* Label fades in on rail hover via Tailwind group-hover */}
                       <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75">
                         {label}
@@ -215,11 +229,11 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
         }}
       >
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-          const isActive = activeTab === id;
+          const active = isActive(id);
           return (
             <button
               key={id}
-              onClick={() => onTabChange(id)}
+              onClick={() => navigate(tabToPath(id))}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -229,10 +243,10 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                 border: 'none',
                 background: 'transparent',
                 cursor: 'pointer',
-                color: isActive ? 'var(--accent-blue)' : 'var(--text-muted)',
+                color: active ? 'var(--accent-blue)' : 'var(--text-muted)',
                 transition: 'color 0.15s ease',
                 fontSize: '0.625rem',
-                fontWeight: isActive ? 600 : 400,
+                fontWeight: active ? 600 : 400,
                 outline: 'none',
                 position: 'relative',
                 minWidth: 44,
@@ -240,7 +254,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
               }}
             >
               <AnimatePresence>
-                {isActive && (
+                {active && (
                   <motion.span
                     key="activeNavMobile"
                     layoutId="activeNavMobile"
@@ -258,7 +272,7 @@ export function Sidebar({ activeTab, onTabChange, asOfDate }: SidebarProps) {
                   />
                 )}
               </AnimatePresence>
-              <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
+              <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
               <span>{label}</span>
             </button>
           );

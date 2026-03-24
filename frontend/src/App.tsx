@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { DashboardPayload, PeriodKey, TabKey, DrawerFilter } from './types';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import type { DashboardPayload, PeriodKey, DrawerFilter } from './types';
 import type { Theme } from './lib/theme';
 import { applyTheme, loadTheme } from './lib/theme';
 import { useLedger } from './context/LedgerContext';
-import { Sidebar, TopBar, GuidedTour, BASIC_STEP_TABS, ADVANCED_STEP_TABS } from './components/layout';
+import { Sidebar, TopBar, GuidedTour } from './components/layout';
 import { TransactionDrawer } from './components/modals';
 import { useTour } from './hooks/useTour';
 import {
@@ -65,12 +66,15 @@ export default function App() {
   // ── Ledger (workspace) context ──
   const { selectedLedgerId } = useLedger();
 
+  // ── Router hooks ──
+  const location  = useLocation();
+  const navigate  = useNavigate();
+
   // ── Data state ──
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activePeriod, setActivePeriod] = useState<PeriodKey>('last');
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
   // ── Guided tour ──
   const { activeTour, finishTour, startTour, stepIndex, setStepIndex } = useTour();
@@ -125,91 +129,84 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // ── Tab renderer ──
-  const renderTab = () => {
-    if (!data) return null;
-    switch (activeTab) {
-      case 'overview':     return <OverviewTab     data={data} activePeriod={activePeriod} onDrillDown={openDrawer} />;
-      case 'cashflow':     return <CashFlowTab     data={data} activePeriod={activePeriod} />;
-      case 'spending':     return <SpendingTab     data={data} activePeriod={activePeriod} onDrillDown={openDrawer} />;
-      case 'debt':         return <DebtTab         data={data} />;
-      case 'transactions': return <TransactionsTab data={data} activePeriod={activePeriod} />;
-      case 'equity':       return null; // handled in pre-guard chain
-      case 'budget':       return null; // handled in pre-guard chain
-      case 'tax':          return null; // handled in pre-guard chain
-      case 'settings':     return null; // handled in pre-guard chain
-    }
-  };
+  // ── Route classification ──
+  const INDEPENDENT_PATHS = ['/settings', '/equity', '/budget', '/tax'];
+  const isDataTab = !INDEPENDENT_PATHS.includes(location.pathname);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
 
       {/* Nav rail — CSS hover-driven, floats over content on expand */}
-      <Sidebar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        asOfDate={data?.meta.as_of_date}
-      />
+      <Sidebar asOfDate={data?.meta.as_of_date} />
 
       {/* Main content — static 72px left margin on desktop matches collapsed rail width */}
       <main
         className="main-content md:ml-[72px] flex-1 flex flex-col"
         style={{ minHeight: '100vh' }}
       >
-        {/* Data-independent tabs — outside data guard, always available */}
-        {activeTab === 'settings' ? (
-          <div style={{ padding: '1.5rem' }}>
-            <SettingsTab
-              activeTheme={activeTheme}
-              onThemeChange={handleThemeChange}
-              onRefresh={refreshData}
-              onStartBasicTour={() => { setActiveTab(BASIC_STEP_TABS[0]); startTour('basic'); }}
-              onStartAdvancedTour={() => { setActiveTab(ADVANCED_STEP_TABS[0]); startTour('advanced'); }}
-            />
-          </div>
-        ) : activeTab === 'equity' ? (
-          <div style={{ padding: '1.5rem' }}>
-            <EquityTab />
-          </div>
-        ) : activeTab === 'budget' ? (
-          <div style={{ padding: '1.5rem' }}>
-            <BudgetTab onDrillDown={openDrawer} />
-          </div>
-        ) : activeTab === 'tax' ? (
-          <div style={{ padding: '1.5rem' }}>
-            <TaxRetirementTab />
-          </div>
-        ) : (
-          <>
-            {loading && <LoadingScreen />}
-            {error && <ErrorScreen message={error} />}
-            {data && (
-              <>
-                <TopBar
-                  activePeriod={activePeriod}
-                  onPeriodChange={setActivePeriod}
-                  asOfDate={data.meta.as_of_date}
-                  onCopyAISummary={handleCopyAISummary}
-                  onDownloadAISummary={handleDownloadAISummary}
-                  onRestartTour={() => startTour('basic')}
-                />
-                <div style={{ padding: '1.5rem' }}>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activeTab}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={SPRING}
-                    >
-                      {renderTab()}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </>
-            )}
-          </>
+        {/* Loading / error screens — only for data-dependent tabs */}
+        {isDataTab && loading && <LoadingScreen />}
+        {isDataTab && error   && <ErrorScreen message={error} />}
+
+        {/* TopBar: sticky header with period filter + AI export — data-dependent tabs only */}
+        {isDataTab && data && (
+          <TopBar
+            activePeriod={activePeriod}
+            onPeriodChange={setActivePeriod}
+            asOfDate={data.meta.as_of_date}
+            onCopyAISummary={handleCopyAISummary}
+            onDownloadAISummary={handleDownloadAISummary}
+            onRestartTour={() => startTour('basic')}
+          />
         )}
+
+        <div style={{ padding: '1.5rem' }}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={SPRING}
+            >
+              <Routes>
+                {/* ── Data-independent routes — render without dashboard payload ── */}
+                <Route path="/settings" element={
+                  <SettingsTab
+                    activeTheme={activeTheme}
+                    onThemeChange={handleThemeChange}
+                    onRefresh={refreshData}
+                    onStartBasicTour={() => { navigate('/'); startTour('basic'); }}
+                    onStartAdvancedTour={() => { navigate('/'); startTour('advanced'); }}
+                  />
+                } />
+                <Route path="/equity"   element={<EquityTab />} />
+                <Route path="/budget"   element={<BudgetTab onDrillDown={openDrawer} />} />
+                <Route path="/tax"      element={<TaxRetirementTab />} />
+
+                {/* ── Data-dependent routes — unconditional <Route> elements; each element
+                    renders null while data is loading (loading screen is shown above routes).
+                    React Router v7 does NOT support <React.Fragment> as a direct child of
+                    <Routes>; use unconditional Route + conditional element instead. ── */}
+                <Route index element={
+                  data ? <OverviewTab data={data} activePeriod={activePeriod} onDrillDown={openDrawer} /> : null
+                } />
+                <Route path="/cashflow" element={
+                  data ? <CashFlowTab data={data} activePeriod={activePeriod} /> : null
+                } />
+                <Route path="/spending" element={
+                  data ? <SpendingTab data={data} activePeriod={activePeriod} onDrillDown={openDrawer} /> : null
+                } />
+                <Route path="/debt" element={
+                  data ? <DebtTab data={data} /> : null
+                } />
+                <Route path="/transactions" element={
+                  data ? <TransactionsTab data={data} activePeriod={activePeriod} /> : null
+                } />
+              </Routes>
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </main>
 
       {/* Drill-down drawer — rendered at root so any chart on any tab can trigger it */}
@@ -219,8 +216,14 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Guided tour — mounted at root so it works across all tabs */}
-      <GuidedTour activeTour={activeTour} onFinish={finishTour} setActiveTab={setActiveTab} stepIndex={stepIndex} setStepIndex={setStepIndex} />
+      {/* Guided tour — setActiveTab is a temporary no-op; replaced in Task 2 */}
+      <GuidedTour
+        activeTour={activeTour}
+        onFinish={finishTour}
+        setActiveTab={() => {}}  // TODO: removed in Task 2
+        stepIndex={stepIndex}
+        setStepIndex={setStepIndex}
+      />
     </div>
   );
 }
