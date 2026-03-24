@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import type { DashboardPayload, PeriodKey, DrawerFilter } from './types';
@@ -73,9 +74,6 @@ export default function App() {
   const navigate  = useNavigate();
 
   // ── Data state ──
-  const [data, setData] = useState<DashboardPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activePeriod, setActivePeriod] = useState<PeriodKey>('last');
 
   // ── Guided tour ──
@@ -98,21 +96,24 @@ export default function App() {
   const handleThemeChange = (t: Theme) => setActiveTheme(t);
 
   // ── Data fetching ──
-  const refreshData = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    const base = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/dashboard`;
-    const url = selectedLedgerId != null ? `${base}?ledger_id=${selectedLedgerId}` : base;
-    fetch(url)
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((d: DashboardPayload) => { setData(d); setLoading(false); })
-      .catch((e: Error) => { setError(e.message); setLoading(false); });
-  }, [selectedLedgerId]);
+  const queryClient = useQueryClient();
+  const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
-  useEffect(() => { refreshData(); }, [refreshData]);
+  const { data, isLoading, error } = useQuery<DashboardPayload>({
+    queryKey: ['dashboardData', selectedLedgerId],
+    queryFn: async () => {
+      const base = `${API_BASE}/api/dashboard`;
+      const url = selectedLedgerId != null ? `${base}?ledger_id=${selectedLedgerId}` : base;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<DashboardPayload>;
+    },
+  });
+
+  /** Called by SettingsTab after a CSV upload to refetch the dashboard payload. */
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
+  };
 
   // ── AI summary helpers ──
   const getSummaryText = () => data?.summaries[activePeriod] ?? '';
@@ -146,8 +147,8 @@ export default function App() {
         style={{ minHeight: '100vh' }}
       >
         {/* Loading / error screens — only for data-dependent tabs */}
-        {isDataTab && loading && <LoadingScreen />}
-        {isDataTab && error   && <ErrorScreen message={error} />}
+        {isDataTab && isLoading && <LoadingScreen />}
+        {isDataTab && error     && <ErrorScreen message={(error as Error).message} />}
 
         {/* TopBar: sticky header with period filter + AI export — data-dependent tabs only */}
         {isDataTab && data && (
@@ -176,7 +177,7 @@ export default function App() {
                   <SettingsTab
                     activeTheme={activeTheme}
                     onThemeChange={handleThemeChange}
-                    onRefresh={refreshData}
+                    onRefresh={handleRefresh}
                     onStartBasicTour={() => { navigate('/'); startTour('basic'); }}
                     onStartAdvancedTour={() => { navigate('/'); startTour('advanced'); }}
                   />
