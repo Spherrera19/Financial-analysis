@@ -21,6 +21,8 @@ import {
 } from './pages';
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
+// Module-level — not re-created on every render
+const INDEPENDENT_PATHS = ['/settings', '/equity', '/budget', '/tax'];
 
 // ── Loading screen ──────────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -130,7 +132,6 @@ export default function App() {
   };
 
   // ── Route classification ──
-  const INDEPENDENT_PATHS = ['/settings', '/equity', '/budget', '/tax'];
   const isDataTab = !INDEPENDENT_PATHS.includes(location.pathname);
 
   return (
