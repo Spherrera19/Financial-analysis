@@ -2,43 +2,42 @@ import { useState, useEffect } from 'react';
 import Joyride, { STATUS, ACTIONS, EVENTS } from 'react-joyride';
 import type { CallBackProps, Step } from 'react-joyride';
 import type { TourType } from '../../hooks/useTour';
-import type { TabKey } from '../../types';
+import { useNavigate } from 'react-router-dom';
 
 interface GuidedTourProps {
   activeTour:   TourType | null;
   onFinish:     (type: TourType) => void;
-  setActiveTab: (tab: TabKey) => void;
   stepIndex:    number;
   setStepIndex: (i: number) => void;
 }
 
-// Maps each step index to the tab that must be active for the target to exist in the DOM.
-// TopBar (#tour-period-filter, #tour-ledger-switcher) is only rendered on data tabs — 'overview' works.
-export const BASIC_STEP_TABS: TabKey[] = [
-  'overview',     // 0: Period Filter
-  'overview',     // 1: Ledger Switcher
-  'overview',     // 2: Net Worth
-  'overview',     // 3: Sankey Chart
-  'cashflow',     // 4: Flow Chart
-  'spending',     // 5: Donut Chart
-  'spending',     // 6: Category Bars
-  'debt',         // 7: Trend Line
-  'equity',       // 8: KPI Cards
-  'tax',          // 9: KPI Cards
-  'budget',       // 10: Pacing Bars
-  'transactions', // 11: Ledger Table
-  'transactions', // 12: Settings Button (Sidebar is visible from Transactions)
+// Maps each step index to the route path that must be active for the target to exist in the DOM.
+// TopBar (#tour-period-filter, #tour-ledger-switcher) is only rendered on data tabs — '/' works.
+export const BASIC_STEP_TABS: string[] = [
+  '/',             // 0: Period Filter
+  '/',             // 1: Ledger Switcher
+  '/',             // 2: Net Worth
+  '/',             // 3: Sankey Chart
+  '/cashflow',     // 4: Flow Chart
+  '/spending',     // 5: Donut Chart
+  '/spending',     // 6: Category Bars
+  '/debt',         // 7: Trend Line
+  '/equity',       // 8: KPI Cards
+  '/tax',          // 9: KPI Cards
+  '/budget',       // 10: Pacing Bars
+  '/transactions', // 11: Ledger Table
+  '/transactions', // 12: Settings Button (Sidebar is visible from Transactions)
 ];
 
-// Advanced tour tab routing:
+// Advanced tour route routing:
 // Step 0 targets #tour-ai-export, which lives in TopBar.tsx. TopBar is ONLY rendered
-// on data tabs (overview, cashflow, spending, debt, transactions) — it is NOT rendered
-// when activeTab === 'settings'. So step 0 must navigate to 'overview' to mount the
+// on data tabs (/, /cashflow, /spending, /debt, /transactions) — it is NOT rendered
+// on /settings. So step 0 must navigate to '/' to mount the
 // TopBar before Joyride tries to attach the tooltip. Steps 1 & 2 are in SettingsTab.
-export const ADVANCED_STEP_TABS: TabKey[] = [
-  'overview',   // 0 — #tour-ai-export (TopBar — only rendered on data tabs)
-  'settings',   // 1 — [data-tour="data-import-section"]
-  'settings',   // 2 — [data-tour="workspace-section"]
+export const ADVANCED_STEP_TABS: string[] = [
+  '/',         // 0 — #tour-ai-export (TopBar — only rendered on data tabs)
+  '/settings', // 1 — [data-tour="data-import-section"]
+  '/settings', // 2 — [data-tour="workspace-section"]
 ];
 
 const JOYRIDE_STYLES = {
@@ -178,7 +177,8 @@ const ADVANCED_STEPS: Step[] = [
 // Maximum poll attempts before auto-advancing (50 × 100ms = 5 seconds).
 const MAX_POLL_ATTEMPTS = 50;
 
-export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setStepIndex }: GuidedTourProps) {
+export function GuidedTour({ activeTour, onFinish, stepIndex, setStepIndex }: GuidedTourProps) {
+  const navigate = useNavigate();
   // runTour drives Joyride's run prop. The polling interceptor (useEffect below)
   // sets this false on every step change and only sets it true once the target element
   // is confirmed to exist and have a non-zero rendered width.
@@ -222,7 +222,7 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
 
         const nextIndex = stepIndex + 1;
         if (nextIndex < steps.length) {
-          setActiveTab(stepTabs[nextIndex]);
+          navigate(stepTabs[nextIndex]);
           setStepIndex(nextIndex);
         } else {
           // activeTour is guaranteed non-null: the !activeTour guard above
@@ -254,14 +254,14 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
         const nextIndex = index + 1;
         if (nextIndex < steps.length) {
           setRunTour(false);
-          setActiveTab(stepTabs[nextIndex]);
+          navigate(stepTabs[nextIndex]);
           setStepIndex(nextIndex);
         }
       } else if (action === ACTIONS.PREV) {
         const prevIndex = index - 1;
         if (prevIndex >= 0) {
           setRunTour(false);
-          setActiveTab(stepTabs[prevIndex]);
+          navigate(stepTabs[prevIndex]);
           setStepIndex(prevIndex);
         }
       }
@@ -273,7 +273,7 @@ export function GuidedTour({ activeTour, onFinish, setActiveTab, stepIndex, setS
       const nextIndex = index + 1;
       if (nextIndex < steps.length) {
         setRunTour(false);
-        setActiveTab(stepTabs[nextIndex]);
+        navigate(stepTabs[nextIndex]);
         setStepIndex(nextIndex);
       } else {
         onFinish(activeTour!);

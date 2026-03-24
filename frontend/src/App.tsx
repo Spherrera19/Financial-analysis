@@ -217,11 +217,10 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Guided tour — setActiveTab is a temporary no-op; replaced in Task 2 */}
+      {/* Guided tour — uses useNavigate internally to switch routes */}
       <GuidedTour
         activeTour={activeTour}
         onFinish={finishTour}
-        setActiveTab={() => {}}  // TODO: removed in Task 2
         stepIndex={stepIndex}
         setStepIndex={setStepIndex}
       />
