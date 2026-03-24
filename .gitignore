@@ -1,3 +1,6 @@
+# Git worktrees (isolated workspaces for feature development)
+.worktrees/
+
 # Personal financial data exports
 Balances_*.csv
 Transactions_*.csv
