@@ -182,9 +182,9 @@ def build_database(
     conn.commit()
 
     # ── Resolve Household ledger_id for stamping imported rows ────────────────
-    # init_db() (called above) seeds the Household ledger via _migrate(), so the
-    # row is guaranteed to exist by this point. We assign all CSV-imported
-    # transactions to Household — the default shared workspace.
+    # run_seeds() (called at end of this function) seeds the Household ledger, so
+    # the row is guaranteed to exist by the time callers use this connection.
+    # We assign all CSV-imported transactions to Household — the default shared workspace.
     _household = conn.execute(
         "SELECT id FROM ledger WHERE name='Household' LIMIT 1"
     ).fetchone()
