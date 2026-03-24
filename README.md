@@ -1,84 +1,92 @@
-# Personal Finance Dashboard
+# Finance Dashboard
 
-A self-hosted personal finance dashboard that reads CSV exports from your finance app and produces an interactive web dashboard — no cloud services, no subscriptions, no data leaving your machine.
+A full-stack personal finance and wealth-tracking dashboard. It ingests CSV exports from banks and brokerages, categorizes transactions, projects debt payoff scenarios, tracks equity vesting, and visualizes cash flow.
 
-## What It Shows
+## 🚀 Tech Stack
 
-| Tab | Description |
-|-----|-------------|
-| **Overview** | KPI cards (net worth, assets, debt, monthly cash flow) + income vs spending trend |
-| **Cash Flow** | 12-month income vs bills bar chart, Sankey flow diagram |
-| **Spending** | Necessity vs optional breakdown, donut chart, top categories |
-| **Debt** | Total liability trend over time, account-level breakdown |
-| **Transactions** | Searchable/filterable transaction table |
-| **Settings** | 5-theme switcher (System, Light, Dark, Pastel, High Contrast) |
+**Frontend (Modernized SPA):**
+* React 19 + TypeScript + Vite
+* React Router v7 (Client-side routing)
+* React Query v5 (Data fetching & caching)
+* Tailwind CSS + Framer Motion (Styling & Animations)
+* Chart.js + react-chartjs-2 (Data Visualization)
 
-## Tech Stack
+**Backend (Live API & Database):**
+* FastAPI (RESTful API Wrapper)
+* SQLite (Local database: `finance.db`)
+* SQLModel & SQLAlchemy 2.0 (ORM)
+* Alembic (Database migrations)
+* pydantic-settings (Environment configuration)
+* Pandas & yfinance (Data processing & live stock quotes)
 
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Chart.js
-- **Backend:** Python 3 (reads CSVs → writes `data.json`)
-- **Data flow:** `generate_dashboard.py` → `frontend/public/data.json` → React app
+---
 
-## Requirements
+## 🛠️ How to Run (Local Development)
 
-- **Python 3.8+** — `python --version` to check. Download from [python.org](https://www.python.org) if needed.
-- **Node.js 18+** — `node --version` to check. Download from [nodejs.org](https://nodejs.org) if needed.
+The easiest way to boot the entire stack on Windows is using the provided start script:
 
-## Running the Dashboard
-
-Double-click **`refresh.bat`** — it generates `data.json`, builds the React app, and opens the dashboard at `http://localhost:3000`.
-
-Or from the command line:
-
-```bat
-cd "C:\path\to\this\folder"
-refresh.bat
+```bash
+# Double-click or run from the terminal:
+start.bat
 ```
 
-## Adding New Monthly Data
+This script will automatically:
 
-Export fresh CSVs from your finance app and drop them into this folder. The script automatically picks up the most recent files by filename timestamp — old exports stay as backups and don't interfere.
+- Boot the FastAPI backend on http://localhost:8000
+- Boot the Vite frontend on http://localhost:5173 (with strict port enforcement)
 
-**Monthly workflow:**
-1. Export new CSVs from your finance app
-2. Drop them into this folder
-3. Run `refresh.bat`
-4. Done — dashboard updates with full history
+### Running Manually
 
-## Customizing Spending Categories
+If you prefer to start the servers manually or are not on Windows:
 
-Open `generate_dashboard.py` in any text editor. Near the top, two sets control how transactions are classified:
+**1. Start the Backend API**
 
-```python
-NECESSITY_CATEGORIES = { "Rent", "Groceries", "Insurance", ... }
-OPTIONAL_CATEGORIES  = { "Restaurants & Bars", "Shopping", ... }
+```bash
+# Ensure your virtual environment is active
+call venv\Scripts\activate  # Windows
+source venv/bin/activate    # Mac/Linux
+
+uvicorn backend.main:app --reload --port 8000
 ```
 
-Move category names between sets to match your view of your spending. Names must match exactly what appears in your CSV exports.
+> Note: On its first run, FastAPI will automatically use Alembic to create the database schema and run `backend/seeds.py` to populate your isolated ledgers.
 
-## Troubleshooting
+**2. Start the Frontend**
 
-**"python is not recognized"** — Python isn't on your PATH. Reinstall from [python.org](https://www.python.org) and check "Add Python to PATH."
+```bash
+cd frontend
+npm run dev -- --port 5173 --strictPort
+```
 
-**Charts don't appear** — Chart.js loads from a CDN on first use; you need an internet connection once. After that it works offline. Chrome or Edge recommended.
+---
 
-**Numbers look wrong after adding new data** — Confirm the new CSV has a later timestamp in its filename than the old one.
+## ⚙️ Configuration (CORS)
 
-**"This Month" shows $0 income** — Paychecks arriving at month-end may be dated in the previous month; income is counted by transaction date.
+The backend is secured by default to only accept traffic from localhost. If you need to access the dashboard from another device on your network, or if Vite bumps you to a different port, you can override the CORS configuration.
 
-## Project Structure
+Create a `.env` file in the root of the project:
 
 ```
-├── generate_dashboard.py   # Python backend — reads CSVs, writes data.json
-├── refresh.bat             # One-click build + serve
-├── frontend/
-│   ├── src/
-│   │   ├── components/     # Sidebar, TopBar, KPI cards, charts, tables
-│   │   ├── pages/          # One component per dashboard tab
-│   │   ├── lib/            # theme.ts, utils.ts
-│   │   ├── types.ts        # TypeScript interfaces (source of truth)
-│   │   └── App.tsx         # Root — data fetch, routing, state
-│   └── public/
-│       └── data.json       # Generated by Python; consumed by React
-└── docs/                   # Design specs and implementation plans
+CORS_ORIGINS='["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]'
+```
+
+---
+
+## 📊 Features
+
+- **Isolated Workspaces (Ledgers):** Manage multiple financial profiles (e.g., Personal, Joint, Business) with separate database scoping.
+- **Cash Flow Sankey:** Interactive, multi-period visualization of exactly where your money flows from income down to net savings.
+- **Debt Snowball/Avalanche Forecaster:** Live calculation of payoff dates and interest saved based on minimum payments and extra allocated cash.
+- **Equity Vesting Projections:** Pulls live market data via yfinance to project the future value of upcoming RSU grants using Geometric Brownian Motion (GBM).
+- **Interactive Guided Tour:** Built-in DOM-polling onboarding tour to explain dashboard metrics to new users.
+
+---
+
+## 🗄️ Database Migrations
+
+If you update the SQLModel tables in `backend/models/`, you must generate a new Alembic migration:
+
+```bash
+alembic revision --autogenerate -m "description of changes"
+alembic upgrade head
 ```
