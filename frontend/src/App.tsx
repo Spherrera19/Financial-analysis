@@ -22,7 +22,8 @@ import {
 } from './pages';
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const;
-// Module-level — not re-created on every render
+// Module-level — not re-created on every render; baked in at build time by Vite
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const INDEPENDENT_PATHS = ['/settings', '/equity', '/budget', '/tax'];
 
 // ── Loading screen ──────────────────────────────────────────────────────────
@@ -97,7 +98,6 @@ export default function App() {
 
   // ── Data fetching ──
   const queryClient = useQueryClient();
-  const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
   const { data, isLoading, error } = useQuery<DashboardPayload>({
     queryKey: ['dashboardData', selectedLedgerId],
@@ -111,9 +111,9 @@ export default function App() {
   });
 
   /** Called by SettingsTab after a CSV upload to refetch the dashboard payload. */
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
-  };
+  }, [queryClient]);
 
   // ── AI summary helpers ──
   const getSummaryText = () => data?.summaries[activePeriod] ?? '';
