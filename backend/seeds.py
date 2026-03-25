@@ -44,31 +44,38 @@ def run_seeds(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT INTO userprofile (name, is_primary) VALUES ('Steven', 1)")
         conn.execute("INSERT INTO userprofile (name, is_primary) VALUES ('Wife', 0)")
 
-    # v8: default Ledger rows
-    if conn.execute("SELECT COUNT(*) FROM ledger").fetchone()[0] == 0:
-        conn.execute("INSERT INTO ledger (name, type) VALUES ('Household', 'joint')")
-        conn.execute("INSERT INTO ledger (name, type) VALUES ('Steven Private', 'personal')")
-        conn.execute("INSERT INTO ledger (name, type) VALUES ('Wife Private', 'personal')")
+    # v8: default Ledger rows (Check by name, not by empty table)
+    conn.execute("INSERT INTO ledger (name, type) SELECT 'Household', 'joint' WHERE NOT EXISTS (SELECT 1 FROM ledger WHERE name='Household')")
+    conn.execute("INSERT INTO ledger (name, type) SELECT 'Steven Private', 'personal' WHERE NOT EXISTS (SELECT 1 FROM ledger WHERE name='Steven Private')")
+    conn.execute("INSERT INTO ledger (name, type) SELECT 'Wife Private', 'personal' WHERE NOT EXISTS (SELECT 1 FROM ledger WHERE name='Wife Private')")
 
-    # v8: LedgerAccess — only seed if both Ledger and UserProfile are populated
-    if conn.execute("SELECT COUNT(*) FROM ledgeraccess").fetchone()[0] == 0:
-        household_row = conn.execute("SELECT id FROM ledger WHERE name='Household' LIMIT 1").fetchone()
-        steven_priv   = conn.execute("SELECT id FROM ledger WHERE name='Steven Private' LIMIT 1").fetchone()
-        wife_priv     = conn.execute("SELECT id FROM ledger WHERE name='Wife Private' LIMIT 1").fetchone()
-        steven_id     = conn.execute("SELECT id FROM userprofile WHERE name='Steven' LIMIT 1").fetchone()
-        wife_id       = conn.execute("SELECT id FROM userprofile WHERE name='Wife' LIMIT 1").fetchone()
+    # v8: LedgerAccess — Always ensure primary users have access to defaults
+    household_row = conn.execute("SELECT id FROM ledger WHERE name='Household' LIMIT 1").fetchone()
+    steven_priv   = conn.execute("SELECT id FROM ledger WHERE name='Steven Private' LIMIT 1").fetchone()
+    wife_priv     = conn.execute("SELECT id FROM ledger WHERE name='Wife Private' LIMIT 1").fetchone()
+    steven_id     = conn.execute("SELECT id FROM userprofile WHERE name='Steven' LIMIT 1").fetchone()
+    wife_id       = conn.execute("SELECT id FROM userprofile WHERE name='Wife' LIMIT 1").fetchone()
 
-        if all(r is not None for r in [household_row, steven_priv, wife_priv, steven_id, wife_id]):
-            h, sp, wp = household_row[0], steven_priv[0], wife_priv[0]
-            sid, wid  = steven_id[0], wife_id[0]
-            conn.executemany(
-                "INSERT OR IGNORE INTO ledgeraccess (user_id, ledger_id, role) VALUES (?, ?, ?)",
-                [
-                    (sid, h,  "admin"),
-                    (sid, sp, "admin"),
-                    (wid, h,  "admin"),
-                    (wid, wp, "admin"),
-                ],
+    if all(r is not None for r in [household_row, steven_priv, wife_priv, steven_id, wife_id]):
+        h, sp, wp = household_row[0], steven_priv[0], wife_priv[0]
+        sid, wid  = steven_id[0], wife_id[0]
+
+        access_data = [
+            (sid, h,  "admin"), (sid, sp, "admin"),
+            (wid, h,  "admin"), (wid, wp, "admin"),
+        ]
+        for uid, lid, role in access_data:
+            conn.execute(
+                "INSERT INTO ledgeraccess (user_id, ledger_id, role) "
+                "SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM ledgeraccess WHERE user_id=? AND ledger_id=?)",
+                (uid, lid, role, uid, lid)
             )
+
+    # v9: DATA RESCUE - Assign any orphaned/unmapped transactions to Household
+    if household_row:
+        conn.execute(
+            "UPDATE transactions SET ledger_id = ? WHERE ledger_id IS NULL OR ledger_id NOT IN (SELECT id FROM ledger)",
+            (household_row[0],)
+        )
 
     conn.commit()
