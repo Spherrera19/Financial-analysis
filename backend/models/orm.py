@@ -33,16 +33,18 @@ class AccountTermRecord(_SQLModel, table=True):  # type: ignore[call-arg]
 class TransactionRecord(_SQLModel, table=True):  # type: ignore[call-arg]
     """DB-layer model with full column names. Separate from the compact Transaction API model."""
     __tablename__ = "transactions"
-    id:          Optional[int] = _Field(default=None, primary_key=True)
-    date:        str           = ""
-    merchant:    str           = ""
-    category:    str           = ""
-    account:     str           = ""
-    amount:      float         = 0.0
-    owner:       str           = ""   # kept for CSV compat; ledger_id is the canonical FK
-    type:        str           = ""   # 'I'|'N'|'O'|'D'|'X'|'T'
-    is_checking: int           = _Field(default=0)
-    ledger_id:   Optional[int] = _Field(default=None, foreign_key="ledger.id")
+    id:                Optional[int] = _Field(default=None, primary_key=True)
+    date:              str           = ""
+    merchant:          str           = ""
+    category:          str           = ""
+    account:           str           = ""
+    amount:            float         = 0.0
+    owner:             str           = ""   # kept for CSV compat; ledger_id is the canonical FK
+    type:              str           = ""   # 'I'|'N'|'O'|'D'|'X'|'T'
+    is_checking:       int           = _Field(default=0)
+    ledger_id:         Optional[int] = _Field(default=None, foreign_key="ledger.id")
+    status:            str           = _Field(default="cleared")
+    original_merchant: Optional[str] = _Field(default=None)
 
 
 class EquityGrantRecord(_SQLModel, table=True):  # type: ignore[call-arg]

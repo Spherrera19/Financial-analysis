@@ -7,7 +7,7 @@ echo ============================================
 echo.
 
 echo Starting FastAPI backend on http://localhost:8000 ...
-start "Finance API" cmd /k "call venv\Scripts\activate && uvicorn backend.main:app --reload"
+start "Finance API" cmd /k "call venv\Scripts\activate && uvicorn backend.main:app --reload --reload-dir backend"
 
 echo Starting Vite frontend on http://localhost:5173 ...
 start "Finance Frontend" cmd /k "cd frontend && npm run dev"

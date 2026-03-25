@@ -124,8 +124,8 @@ def _load_accounts_history(data_dir: Path) -> list[dict]:
 def _insert_transactions(conn: sqlite3.Connection, rows: list[dict]) -> int:
     conn.executemany(
         """
-        INSERT INTO transactions (date, merchant, category, account, amount, owner, type, is_checking, ledger_id)
-        VALUES (:date, :merchant, :category, :account, :amount, :owner, :type, :is_checking, :ledger_id)
+        INSERT INTO transactions (date, merchant, category, account, amount, owner, type, is_checking, ledger_id, status, original_merchant)
+        VALUES (:date, :merchant, :category, :account, :amount, :owner, :type, :is_checking, :ledger_id, :status, :original_merchant)
         """,
         rows,
     )
@@ -141,6 +141,29 @@ def _insert_accounts_history(conn: sqlite3.Connection, rows: list[dict]) -> int:
         rows,
     )
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# Database reset helper
+# ---------------------------------------------------------------------------
+
+def _reset_database(conn: sqlite3.Connection):
+    """Safely truncates data tables and resets autoincrement counters."""
+    print("\n[ingest] Clearing existing table data...")
+
+    # 1. Clear target tables
+    conn.execute("DELETE FROM transactions;")
+    conn.execute("DELETE FROM accounts_history;")
+
+    # 2. Bulletproof ID Reset: Check if sqlite_sequence exists before touching it
+    seq_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'"
+    ).fetchone()
+
+    if seq_exists:
+        conn.execute(
+            "DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'accounts_history');"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -174,11 +197,7 @@ def build_database(
     conn = init_db(db_path)
 
     # ── Wipe existing data (idempotent reload) ────────────────────────────────
-    print("\n[ingest] Clearing existing table data...")
-    conn.execute("DELETE FROM transactions;")
-    conn.execute("DELETE FROM accounts_history;")
-    # Reset autoincrement counters so IDs are stable across reloads
-    conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'accounts_history');")
+    _reset_database(conn)
     conn.commit()
 
     # ── Seed default lookup rows (routing targets, profiles, ledgers, etc.) ───
@@ -187,19 +206,33 @@ def build_database(
     run_seeds(conn)
 
     # ── Resolve Household ledger_id for stamping imported rows ────────────────
-    # run_seeds() (called just above) seeds the Household ledger, so the row is
-    # guaranteed to exist by this point. We assign all CSV-imported
-    # transactions to Household — the default shared workspace.
     _household = conn.execute(
         "SELECT id FROM ledger WHERE name='Household' LIMIT 1"
     ).fetchone()
     _household_id: int | None = _household[0] if _household else None
 
+    # ── Resolve Account Routing Map ───────────────────────────────────────────
+    acct_map_rows = conn.execute("SELECT account_name, ledger_id FROM account_ledger_map").fetchall()
+    acct_to_ledger = {r[0]: r[1] for r in acct_map_rows}
+
     # ── Load & insert transactions ────────────────────────────────────────────
     print("\n[ingest] Loading transactions...")
     tx_rows = _load_transactions(data_dir)
     for row in tx_rows:
-        row["ledger_id"] = _household_id
+        acct_name = row.get("account", "")
+
+        # Preserve original merchant string before any future renaming
+        row["original_merchant"] = row.get("merchant", "")
+
+        # Route by Account Name
+        if acct_name in acct_to_ledger:
+            row["ledger_id"] = acct_to_ledger[acct_name]
+            row["status"] = "cleared"
+        else:
+            # Fallback to Household, but flag for Triage UI
+            row["ledger_id"] = _household_id
+            row["status"] = "needs_review"
+
     n_tx = _insert_transactions(conn, tx_rows)
     conn.commit()
     print(f"  Inserted {n_tx} transactions into SQLite.")
