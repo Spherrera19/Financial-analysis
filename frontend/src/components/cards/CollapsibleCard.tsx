@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronUp } from 'lucide-react';
+import { ChevronUp, HelpCircle } from 'lucide-react'; // <-- Imported HelpCircle
 import { cn } from '../../lib/utils';
 
 interface CollapsibleCardProps {
@@ -8,6 +8,7 @@ interface CollapsibleCardProps {
   children: React.ReactNode;
   defaultOpen?: boolean;
   className?: string;
+  helpText?: string; // <-- Added helpText prop
 }
 
 export function CollapsibleCard({
@@ -15,6 +16,7 @@ export function CollapsibleCard({
   children,
   defaultOpen = true,
   className,
+  helpText, // <-- Destructured here
 }: CollapsibleCardProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -36,17 +38,31 @@ export function CollapsibleCard({
           textAlign: 'left',
         }}
       >
-        <h2
-          style={{
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            lineHeight: 1.3,
-          }}
-        >
-          {title}
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              lineHeight: 1.3,
+            }}
+          >
+            {title}
+          </h2>
+          
+          {/* Help Icon Tooltip */}
+          {helpText && (
+            <div 
+              title={helpText}
+              onClick={(e) => e.stopPropagation()} // Prevents collapsing the card if clicked
+              style={{ display: 'flex', cursor: 'help', color: 'var(--text-muted)' }}
+            >
+              <HelpCircle size={16} strokeWidth={2} />
+            </div>
+          )}
+        </div>
+
         <motion.span
           animate={{ rotate: isOpen ? 0 : 180 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}

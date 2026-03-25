@@ -126,7 +126,7 @@ function PayoffForecaster({ projection, accounts }: PayoffForecasterProps) {
   });
 
   return (
-    <CollapsibleCard title="Payoff Forecaster">
+    <CollapsibleCard title="Payoff Forecaster" helpText="Simulates your debt payoff trajectory. Avalanche mathematically minimizes interest paid, while Snowball builds psychological momentum by targeting the smallest balances first.">
       {/* Strategy toggle */}
       <div style={{
         display: 'flex',
@@ -292,7 +292,7 @@ function DebtTab({ data }: DebtTabProps) {
 
       {/* Debt Trend Chart */}
       <div id="tour-debt-trend" style={{ marginBottom: '1rem' }}>
-        <CollapsibleCard title="Debt Trend">
+        <CollapsibleCard title="Debt Trend" helpText="A historical plot of your aggregate debt balances over time.">
           <DebtTrendLine debtSection={data.debt} />
         </CollapsibleCard>
       </div>

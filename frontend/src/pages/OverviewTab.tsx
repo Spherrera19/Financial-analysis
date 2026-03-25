@@ -38,7 +38,7 @@ function OverviewTab({ data, activePeriod, onDrillDown }: OverviewTabProps) {
     <div style={{ padding: '1.5rem' }}>
       {/* Discretionary Waterfall — most critical metric, shown first */}
       <div style={{ marginBottom: '1.25rem' }}>
-        <CollapsibleCard title="Discretionary Income Breakdown">
+        <CollapsibleCard title="Discretionary Income Breakdown" helpText="A waterfall view showing exactly how your remaining cash is depleted by discretionary spending.">
           <DiscretionaryBar waterfall={period.cash_flow_waterfall} onDrillDown={onDrillDown} />
         </CollapsibleCard>
       </div>
@@ -92,8 +92,8 @@ function OverviewTab({ data, activePeriod, onDrillDown }: OverviewTabProps) {
       </div>
 
       {/* Sankey Chart */}
-      <div style={{ marginBottom: '1rem' }}>
-        <CollapsibleCard title="Money Flow — Income Sources to Spending">
+      <div id="tour-sankey-chart" style={{ marginBottom: '1rem' }}>
+        <CollapsibleCard title="Money Flow — Income Sources to Spending" helpText="Visualizes the exact flow of your money from gross income sources down to net savings and investments.">
           <SankeyChart flows={period.sankey} onDrillDown={onDrillDown} />
         </CollapsibleCard>
       </div>
@@ -103,10 +103,10 @@ function OverviewTab({ data, activePeriod, onDrillDown }: OverviewTabProps) {
         className="grid-2"
         style={{ display: 'grid', gap: '1rem' }}
       >
-        <CollapsibleCard title="Assets">
+        <CollapsibleCard title="Assets" helpText="A current snapshot of your synced asset account balances.">
           <AccountList accounts={data.accounts} showType="assets" />
         </CollapsibleCard>
-        <CollapsibleCard title="Liabilities">
+        <CollapsibleCard title="Liabilities" helpText="A current snapshot of your synced liability account balances.">
           <AccountList accounts={data.accounts} showType="liabilities" />
         </CollapsibleCard>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { CollapsibleCard } from '../components/cards';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLedger } from '../context/LedgerContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -962,12 +963,13 @@ export function BudgetTab({ onDrillDown }: BudgetTabProps) {
       {divider}
 
       {/* ── Section C: Category Manager ── */}
-      <h2 style={sectionHeader}>Transaction Categories &amp; Budgets</h2>
-      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Track live spending pace against monthly targets, or edit category budgets.
-        The pace marker shows where you <em>should</em> be given today's date.
-      </p>
-      <CategoryManager />
+      <CollapsibleCard title="Budget Pacing" helpText="Shows remaining discretionary income for the current period based on your custom pacing limits.">
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+          Track live spending pace against monthly targets, or edit category budgets.
+          The pace marker shows where you <em>should</em> be given today's date.
+        </p>
+        <CategoryManager />
+      </CollapsibleCard>
 
       <div style={{ height: '2rem' }} />
     </div>

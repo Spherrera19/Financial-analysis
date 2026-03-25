@@ -54,11 +54,11 @@ function CashFlowTab({ data, activePeriod }: CashFlowTabProps) {
         style={{ display: 'grid', gap: '1rem' }}
       >
         <div id="tour-cashflow-chart">
-          <CollapsibleCard title="Income vs Spending">
+          <CollapsibleCard title="Income vs Spending" helpText="Tracks your monthly inflows versus outflows to calculate your net cash velocity and savings rate.">
             <FlowChart periodData={period} />
           </CollapsibleCard>
         </div>
-        <CollapsibleCard title="Checking: Income vs Direct Expenses">
+        <CollapsibleCard title="Checking: Income vs Direct Expenses" helpText="A detailed breakdown of your primary cash flow vehicle.">
           <FlowChart periodData={chkData} />
         </CollapsibleCard>
       </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { HelpCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { RetirementAccount, UserProfile } from '../types';
 import { RetirementCard } from '../components/cards/RetirementCard';
@@ -82,9 +83,14 @@ export default function TaxRetirementTab() {
       </div>
 
       {/* ── KPI Scoreboard ─────────────────────────────────────────────── */}
-      <div className="bg-[linear-gradient(135deg,var(--accent-blue),#6366f1)] rounded-2xl p-8 mb-8 text-white">
-        <div className="text-xs font-semibold tracking-[0.1em] uppercase opacity-80 mb-2">
-          Total Tax Shield
+      <div id="tour-tax-cards" className="bg-[linear-gradient(135deg,var(--accent-blue),#6366f1)] rounded-2xl p-8 mb-8 text-white">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <div className="text-xs font-semibold tracking-[0.1em] uppercase opacity-80">
+            Total Tax Shield
+          </div>
+          <div title="Dynamically calculates the exact dollar amount your 401k/IRA contributions are legally protecting from the IRS." style={{ display: 'flex', cursor: 'help', opacity: 0.8 }}>
+            <HelpCircle size={14} strokeWidth={2} />
+          </div>
         </div>
         <div className="text-5xl font-black leading-none mb-2">
           {fmt(totalShield)}

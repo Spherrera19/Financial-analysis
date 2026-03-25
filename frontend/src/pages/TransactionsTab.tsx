@@ -1,4 +1,4 @@
-import { KpiCard } from '../components/cards';
+import { KpiCard, CollapsibleCard } from '../components/cards';
 import { TransactionTable } from '../components/tables';
 import type { DashboardPayload, PeriodKey } from '../types';
 
@@ -41,8 +41,10 @@ function TransactionsTab({ data, activePeriod }: TransactionsTabProps) {
       </div>
 
       {/* Transaction Table */}
-      <div style={{ marginBottom: '1rem' }}>
-        <TransactionTable transactions={data.transactions} />
+      <div id="tour-transaction-table" style={{ marginBottom: '1rem' }}>
+        <CollapsibleCard title="Transaction Ledger" helpText="The raw, searchable ledger of all imported and manual transactions. You can recategorize items or exclude them from cash flow calculations here.">
+          <TransactionTable transactions={data.transactions} />
+        </CollapsibleCard>
       </div>
     </div>
   );

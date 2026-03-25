@@ -756,6 +756,7 @@ function EquityTab() {
 
         {/* ── KPI row ─────────────────────────────────────────────────────── */}
         <div
+          id="tour-equity-kpi"
           style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}
           className="grid-3"
         >
@@ -766,7 +767,7 @@ function EquityTab() {
 
         {/* ── Vesting timeline ─────────────────────────────────────────────── */}
         <div style={{ marginBottom: '1rem' }}>
-          <CollapsibleCard title="Vesting Timeline">
+          <CollapsibleCard title="Vesting Timeline" helpText="Schedule of upcoming stock vests and their estimated pre-tax values.">
             <VestingTable vests={upcoming_vests} />
           </CollapsibleCard>
         </div>
@@ -782,7 +783,7 @@ function EquityTab() {
 
         {/* ── Price cone of uncertainty ─────────────────────────────────────── */}
         <div style={{ marginBottom: '1rem' }}>
-          <CollapsibleCard title="Market Data &amp; Price Projections">
+          <CollapsibleCard title="Market Data &amp; Price Projections" helpText="Projects the future value of unvested grants using Geometric Brownian Motion (GBM) based on real-time stock volatility.">
             {tickerGroups.map(([ticker, tickerVests]) => {
               const currentPrice = tickerVests[0].net_shares > 0
                 ? tickerVests[0].current_value / tickerVests[0].net_shares

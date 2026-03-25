@@ -1268,7 +1268,7 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh, onStartBasi
       <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
       {/* ── Workspace Access ── */}
-      <div data-tour="workspace-section">
+      <div id="tour-workspace-access">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
           <h2 style={{ ...sectionHeader, marginBottom: 0 }}>Workspace Access</h2>
           <button
@@ -1306,7 +1306,7 @@ export function SettingsTab({ activeTheme, onThemeChange, onRefresh, onStartBasi
       <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
 
       {/* ── Data Import ── */}
-      <div data-tour="data-import-section">
+      <div id="tour-data-import">
         <h2 style={sectionHeader}>Data Import</h2>
         <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
           Drop CSV exports here to refresh the dashboard. Monarch exports

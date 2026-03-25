@@ -189,8 +189,7 @@ export function TopBar({
       </div>
 
       {/* Ledger / workspace switcher */}
-      {ledgers.length > 0 && (
-        <div ref={ledgerDropdownRef} style={{ position: 'relative' }}>
+      <div ref={ledgerDropdownRef} style={{ position: 'relative' }}>
           <button
             id="tour-ledger-switcher"
             onClick={() => setLedgerOpen(o => !o)}
@@ -272,7 +271,6 @@ export function TopBar({
             </div>
           )}
         </div>
-      )}
 
       {/* User switcher */}
       <UserSwitcherDropdown />
@@ -408,7 +406,7 @@ function UserSwitcherDropdown() {
   const activeName = profiles.find(p => p.id === activeUserId)?.name ?? 'User';
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} id="tour-user-switcher" style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(o => !o)}
         style={{
