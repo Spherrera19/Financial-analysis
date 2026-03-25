@@ -36,6 +36,11 @@ from backend.models import (
     Transaction,
 )
 
+def _get_pd_conn(conn):
+    """Extract the SQLAlchemy engine/connection if a SQLModel Session is passed."""
+    return conn.get_bind() if hasattr(conn, 'get_bind') else conn
+
+
 _TAX_WITHHOLDING = 0.30
 
 _BACKEND_DIR = Path(__file__).parent
@@ -81,7 +86,7 @@ def _latest_account_balances(conn: sqlite3.Connection) -> list[dict]:
     """
     df = pd.read_sql_query(
         "SELECT name, balance, date FROM accounts_history ORDER BY name, date DESC",
-        conn,
+        _get_pd_conn(conn),
     )
     if df.empty:
         return []
@@ -162,7 +167,7 @@ def build_period(
     df = pd.read_sql_query(
         f"SELECT date, merchant, category, amount, is_checking FROM transactions"
         f" WHERE substr(date, 1, 7) IN ({placeholders}){ledger_clause}",
-        conn,
+        _get_pd_conn(conn),
         params=params,
     )
 
@@ -339,7 +344,7 @@ def build_debt_section(conn: sqlite3.Connection) -> DebtSection:
     """
     df = pd.read_sql_query(
         "SELECT name, balance, date FROM accounts_history WHERE type = 'liability'",
-        conn,
+        _get_pd_conn(conn),
     )
     if df.empty:
         _empty = PayoffScenario(payoff_months=0, total_interest_paid=0.0, monthly_balances=[])
@@ -458,14 +463,14 @@ def get_recent_transactions(
         df = pd.read_sql_query(
             "SELECT date, merchant, category, account, amount, owner, type, is_checking"
             " FROM transactions WHERE ledger_id = ? ORDER BY date DESC",
-            conn,
+            _get_pd_conn(conn),
             params=[ledger_id],
         )
     else:
         df = pd.read_sql_query(
             "SELECT date, merchant, category, account, amount, owner, type, is_checking"
             " FROM transactions ORDER BY date DESC",
-            conn,
+            _get_pd_conn(conn),
         )
 
     if df.empty:

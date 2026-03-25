@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 TransactionType = Literal["I", "N", "O", "D", "X", "T"]
@@ -17,3 +17,5 @@ class Transaction(BaseModel):
     o: str          # owner
     t: TransactionType  # type code
     k: Literal[0, 1]   # 1 = checking account
+    status: str = Field(default="cleared")
+    original_merchant: str | None = Field(default=None)

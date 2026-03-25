@@ -19,6 +19,23 @@ frontend/public/data.json
 # Python virtual environment
 venv/
 
+# Python bytecode cache
+__pycache__/
+*.pyc
+*.pyo
+
+# SQLite database (generated at runtime)
+*.db
+
+# Runtime logs
+logs/
+
+# Root-level node_modules (e.g. standalone tailwind/chart deps)
+node_modules/
+
+# Accidental pip install artifacts
+=*
+
 # Frontend environment files (may contain API keys in future)
 frontend/.env
 frontend/.env.local

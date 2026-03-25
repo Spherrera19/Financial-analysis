@@ -49,27 +49,31 @@ def run_seeds(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO ledger (name, type) SELECT 'Steven Private', 'personal' WHERE NOT EXISTS (SELECT 1 FROM ledger WHERE name='Steven Private')")
     conn.execute("INSERT INTO ledger (name, type) SELECT 'Wife Private', 'personal' WHERE NOT EXISTS (SELECT 1 FROM ledger WHERE name='Wife Private')")
 
-    # v8: LedgerAccess — Always ensure primary users have access to defaults
+    # v8: LedgerAccess — Robust assignment based on primary flag, not names
     household_row = conn.execute("SELECT id FROM ledger WHERE name='Household' LIMIT 1").fetchone()
     steven_priv   = conn.execute("SELECT id FROM ledger WHERE name='Steven Private' LIMIT 1").fetchone()
     wife_priv     = conn.execute("SELECT id FROM ledger WHERE name='Wife Private' LIMIT 1").fetchone()
-    steven_id     = conn.execute("SELECT id FROM userprofile WHERE name='Steven' LIMIT 1").fetchone()
-    wife_id       = conn.execute("SELECT id FROM userprofile WHERE name='Wife' LIMIT 1").fetchone()
 
-    if all(r is not None for r in [household_row, steven_priv, wife_priv, steven_id, wife_id]):
-        h, sp, wp = household_row[0], steven_priv[0], wife_priv[0]
-        sid, wid  = steven_id[0], wife_id[0]
+    # Grab users by role, not hardcoded name
+    primary_user  = conn.execute("SELECT id FROM userprofile WHERE is_primary=1 LIMIT 1").fetchone()
+    secondary_user= conn.execute("SELECT id FROM userprofile WHERE is_primary=0 LIMIT 1").fetchone()
 
-        access_data = [
-            (sid, h,  "admin"), (sid, sp, "admin"),
-            (wid, h,  "admin"), (wid, wp, "admin"),
-        ]
-        for uid, lid, role in access_data:
-            conn.execute(
-                "INSERT INTO ledgeraccess (user_id, ledger_id, role) "
-                "SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM ledgeraccess WHERE user_id=? AND ledger_id=?)",
-                (uid, lid, role, uid, lid)
-            )
+    if household_row:
+        h_id = household_row[0]
+
+        # 1. Grant Primary User access to Household & Personal
+        if primary_user:
+            p_id = primary_user[0]
+            conn.execute("INSERT INTO ledgeraccess (user_id, ledger_id, role) SELECT ?, ?, 'admin' WHERE NOT EXISTS (SELECT 1 FROM ledgeraccess WHERE user_id=? AND ledger_id=?)", (p_id, h_id, p_id, h_id))
+            if steven_priv:
+                conn.execute("INSERT INTO ledgeraccess (user_id, ledger_id, role) SELECT ?, ?, 'admin' WHERE NOT EXISTS (SELECT 1 FROM ledgeraccess WHERE user_id=? AND ledger_id=?)", (p_id, steven_priv[0], p_id, steven_priv[0]))
+
+        # 2. Grant Secondary User access to Household & Personal
+        if secondary_user:
+            s_id = secondary_user[0]
+            conn.execute("INSERT INTO ledgeraccess (user_id, ledger_id, role) SELECT ?, ?, 'admin' WHERE NOT EXISTS (SELECT 1 FROM ledgeraccess WHERE user_id=? AND ledger_id=?)", (s_id, h_id, s_id, h_id))
+            if wife_priv:
+                conn.execute("INSERT INTO ledgeraccess (user_id, ledger_id, role) SELECT ?, ?, 'admin' WHERE NOT EXISTS (SELECT 1 FROM ledgeraccess WHERE user_id=? AND ledger_id=?)", (s_id, wife_priv[0], s_id, wife_priv[0]))
 
     # v9: DATA RESCUE - Assign any orphaned/unmapped transactions to Household
     if household_row:

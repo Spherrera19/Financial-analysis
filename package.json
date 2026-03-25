@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "framer-motion": "^12.36.0",
+    "react-chartjs-2": "^5.3.1"
+  }
+}
