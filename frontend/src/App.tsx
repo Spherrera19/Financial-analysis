@@ -194,7 +194,7 @@ export default function App() {
                   data ? <OverviewTab data={data} activePeriod={activePeriod} onDrillDown={openDrawer} /> : null
                 } />
                 <Route path="/cashflow" element={
-                  data ? <CashFlowTab data={data} activePeriod={activePeriod} /> : null
+                  data ? <CashFlowTab data={data} activePeriod={activePeriod} onDrillDown={openDrawer} /> : null
                 } />
                 <Route path="/spending" element={
                   data ? <SpendingTab data={data} activePeriod={activePeriod} onDrillDown={openDrawer} /> : null

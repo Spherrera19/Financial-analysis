@@ -304,6 +304,44 @@ def build_period(
             for cat_name, cat_amt in _san_cats(kind_name, bname):
                 sankey_rows.append(SankeyFlow(from_=bname, to=cat_name, flow=cat_amt))
 
+    # ── Macro Sankey — 2-Tier: Income Sources → Total Income → Spend Types ──
+    macro_sankey_rows: list[SankeyFlow] = []
+
+    # Tier 1: Individual income sources → "Total Income"
+    for src_name, src_amt in zip(src_labels, src_values):
+        if src_amt > 0:
+            macro_sankey_rows.append(SankeyFlow(from_=src_name, to="Total Income", flow=round(src_amt, 2)))
+
+    # Tier 2: "Total Income" → spend type buckets (and Net Savings / Savings Drawn)
+    type_buckets = [
+        ("Necessities", round(nec_total, 2)),
+        ("Optional",    round(opt_total, 2)),
+        ("Debt",        round(dbt_total, 2)),
+        ("Other",       round(oth_total, 2)),
+    ]
+    macro_total_spending = round(nec_total + opt_total + dbt_total + oth_total, 2)
+
+    if kpi_income > 0 or macro_total_spending > 0:
+        if kpi_income >= macro_total_spending:
+            for bname, bamt in type_buckets:
+                if bamt > 0:
+                    macro_sankey_rows.append(SankeyFlow(from_="Total Income", to=bname, flow=bamt))
+            leftover = round(kpi_income - macro_total_spending, 2)
+            if leftover > 0:
+                macro_sankey_rows.append(SankeyFlow(from_="Total Income", to="Net Savings", flow=leftover))
+        else:
+            # Deficit: income covers a proportional share; Savings Drawn fills the gap
+            for bname, bamt in type_buckets:
+                if bamt <= 0:
+                    continue
+                ratio        = bamt / macro_total_spending
+                income_share = round(kpi_income * ratio, 2)
+                drawn_share  = round(bamt - income_share, 2)
+                if income_share > 0:
+                    macro_sankey_rows.append(SankeyFlow(from_="Total Income",   to=bname, flow=income_share))
+                if drawn_share > 0:
+                    macro_sankey_rows.append(SankeyFlow(from_="Savings Drawn", to=bname, flow=drawn_share))
+
     # ── Discretionary waterfall ────────────────────────────────────────────
     _n_months   = len(period_months)
     _min_total  = get_minimum_payment_total(_n_months)
@@ -344,6 +382,7 @@ def build_period(
         kpi_debt=round(dbt_total, 2),
         kpi_disposable=round(kpi_income - nec_total - dbt_total, 2),
         sankey=sankey_rows,
+        macro_sankey=macro_sankey_rows,
         cash_flow_waterfall=waterfall,
     )
 
@@ -362,6 +401,7 @@ def _empty_period_data(period_months: list[str]) -> PeriodData:
         kpi_income=0.0, kpi_spending=0.0, kpi_net=0.0,
         kpi_debt=0.0, kpi_disposable=0.0,
         sankey=[],
+        macro_sankey=[],
         cash_flow_waterfall=CashFlowWaterfall(
             total_income=0.0,
             necessary_spending=0.0,

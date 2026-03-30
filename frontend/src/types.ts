@@ -74,6 +74,7 @@ export interface PeriodData {
   kpi_debt: number;
   kpi_disposable: number;
   sankey: SankeyFlow[];
+  macro_sankey: SankeyFlow[];
   cash_flow_waterfall: CashFlowWaterfall;
 }
 

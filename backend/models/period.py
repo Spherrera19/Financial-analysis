@@ -39,4 +39,5 @@ class PeriodData(BaseModel):
     kpi_debt: float
     kpi_disposable: float
     sankey: list[SankeyFlow]
+    macro_sankey: list[SankeyFlow]
     cash_flow_waterfall: CashFlowWaterfall

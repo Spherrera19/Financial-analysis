@@ -1,6 +1,6 @@
 import { KpiCard, CollapsibleCard } from '../components/cards';
-import { FlowChart } from '../components/charts';
-import type { DashboardPayload, PeriodKey } from '../types';
+import { FlowChart, SankeyChart } from '../components/charts';
+import type { DashboardPayload, DrawerFilter, PeriodKey } from '../types';
 
 function fmt(n: number): string {
   const abs = Math.abs(n);
@@ -11,9 +11,10 @@ function fmt(n: number): string {
 interface CashFlowTabProps {
   data: DashboardPayload;
   activePeriod: PeriodKey;
+  onDrillDown: (f: Omit<DrawerFilter, 'period'>) => void;
 }
 
-function CashFlowTab({ data, activePeriod }: CashFlowTabProps) {
+function CashFlowTab({ data, activePeriod, onDrillDown }: CashFlowTabProps) {
   const period = data.periods[activePeriod];
 
   const chkData = {
@@ -46,6 +47,16 @@ function CashFlowTab({ data, activePeriod }: CashFlowTabProps) {
           highlighted={true}
           subtitle={`Income − Necessities − Debt (${fmt(period.kpi_debt)} debt)`}
         />
+      </div>
+
+      {/* Macro Flow Sankey */}
+      <div style={{ marginBottom: '1rem' }}>
+        <CollapsibleCard
+          title="Macro Money Flow (By Type)"
+          helpText="High-level view of where your income goes — from source to spend type — without category clutter."
+        >
+          <SankeyChart flows={period.macro_sankey} onDrillDown={onDrillDown} />
+        </CollapsibleCard>
       </div>
 
       {/* Charts */}
