@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronUp, ChevronDown, Search, ArrowRightLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Transaction } from '../../types';
@@ -7,6 +7,7 @@ interface TransactionTableProps {
   transactions: Transaction[];
   categories?: string[];
   onRecategorize?: (id: number, category: string) => void;
+  onRetype?: (id: number, type: string) => void;
   onRoute?: (tx: Transaction) => void;
 }
 
@@ -17,6 +18,15 @@ interface SortState {
   field: SortField;
   direction: SortDir;
 }
+
+const TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'N', label: 'Necessity' },
+  { value: 'O', label: 'Optional' },
+  { value: 'I', label: 'Income' },
+  { value: 'D', label: 'Debt / Repayment' },
+  { value: 'X', label: 'Excluded / Ignore' },
+  { value: 'T', label: 'Transfer' },
+];
 
 const TYPE_LABELS: Record<Transaction['type'], string> = {
   I: 'Income',
@@ -57,6 +67,19 @@ function typeBadgeStyle(t: Transaction['type']): React.CSSProperties {
   }
 }
 
+const cellSelectStyle: React.CSSProperties = {
+  background: 'var(--bg-surface-2)',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 6,
+  color: 'var(--text-secondary)',
+  fontSize: 12,
+  padding: '3px 6px',
+  cursor: 'pointer',
+  maxWidth: 160,
+  width: '100%',
+  outline: 'none',
+};
+
 function formatAmount(v: number): string {
   const abs = Math.abs(v).toLocaleString('en-US', {
     minimumFractionDigits: 2,
@@ -75,59 +98,71 @@ function SortIcon({ field, sort }: { field: SortField; sort: SortState }) {
   );
 }
 
-/** Inline category cell — datalist input with Escape-to-cancel */
+/** Inline category select — optimistic local state synced on prop change */
 function CategoryCell({
   tx,
+  categories,
   onRecategorize,
 }: {
   tx: Transaction;
+  categories: string[];
   onRecategorize: (id: number, category: string) => void;
 }) {
-  const [draft, setDraft] = useState(tx.category);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [value, setValue] = useState(tx.category);
+  useEffect(() => setValue(tx.category), [tx.category]);
 
-  // Keep draft in sync if the row data updates (e.g. after a bulk re-categorization refetch)
-  useMemo(() => setDraft(tx.category), [tx.category]);
-
-  function commit() {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== tx.category) {
-      onRecategorize(tx.id, trimmed);
-    }
-  }
+  const allOptions = categories.includes(value)
+    ? categories
+    : [value, ...categories]; // ensure current value is always present
 
   return (
-    <input
-      ref={inputRef}
-      list="tx-categories-datalist"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          commit();
-          inputRef.current?.blur();
-        }
-        if (e.key === 'Escape') {
-          // Polish note #3: reset to original value, no mutation
-          setDraft(tx.category);
-          inputRef.current?.blur();
-        }
+    <select
+      value={value}
+      onChange={(e) => {
+        setValue(e.target.value);
+        onRecategorize(tx.id, e.target.value);
+      }}
+      style={cellSelectStyle}
+    >
+      {allOptions.map((cat) => (
+        <option key={cat} value={cat}>{cat}</option>
+      ))}
+    </select>
+  );
+}
+
+/** Inline type select — optimistic local state synced on prop change */
+function TypeCell({
+  tx,
+  onRetype,
+}: {
+  tx: Transaction;
+  onRetype: (id: number, type: string) => void;
+}) {
+  const [value, setValue] = useState<string>(tx.type);
+  useEffect(() => setValue(tx.type), [tx.type]);
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        setValue(e.target.value);
+        onRetype(tx.id, e.target.value);
       }}
       style={{
-        background: 'var(--bg-surface-2)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 6,
-        color: 'var(--text-secondary)',
-        fontSize: 12,
-        padding: '3px 6px',
-        cursor: 'text',
-        maxWidth: 150,
-        width: '100%',
-        outline: 'none',
+        ...cellSelectStyle,
+        ...typeBadgeStyle(value as Transaction['type']),
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '2px 8px',
+        maxWidth: 140,
       }}
-    />
+    >
+      {TYPE_OPTIONS.map((opt) => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
   );
 }
 
@@ -135,6 +170,7 @@ function TransactionTable({
   transactions,
   categories = [],
   onRecategorize = () => {},
+  onRetype,
   onRoute,
 }: TransactionTableProps) {
   const [sort, setSort] = useState<SortState>({ field: 'date', direction: 'desc' });
@@ -175,6 +211,7 @@ function TransactionTable({
   }
 
   const showRoute = Boolean(onRoute);
+  const showTypeDropdown = Boolean(onRetype);
 
   const headerCells: { label: string; field?: SortField; align?: 'right' | 'center' }[] = [
     { label: 'Date',     field: 'date' },
@@ -195,13 +232,6 @@ function TransactionTable({
         overflow: 'hidden',
       }}
     >
-      {/* Polish note #2: single datalist node outside the row loop */}
-      <datalist id="tx-categories-datalist">
-        {categories.map((cat) => (
-          <option key={cat} value={cat} />
-        ))}
-      </datalist>
-
       {/* Search */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ position: 'relative', maxWidth: 320 }}>
@@ -319,7 +349,11 @@ function TransactionTable({
                   {tx.merchant}
                 </td>
                 <td style={{ padding: '4px 12px' }}>
-                  <CategoryCell tx={tx} onRecategorize={onRecategorize} />
+                  <CategoryCell
+                    tx={tx}
+                    categories={categories}
+                    onRecategorize={onRecategorize}
+                  />
                 </td>
                 <td
                   style={{
@@ -345,19 +379,23 @@ function TransactionTable({
                 >
                   {formatAmount(tx.amount)}
                 </td>
-                <td style={{ padding: '9px 12px' }}>
-                  <span
-                    style={{
-                      ...typeBadgeStyle(tx.type),
-                      padding: '2px 8px',
-                      borderRadius: 999,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      display: 'inline-block',
-                    }}
-                  >
-                    {TYPE_LABELS[tx.type]}
-                  </span>
+                <td style={{ padding: '4px 12px' }}>
+                  {showTypeDropdown && onRetype ? (
+                    <TypeCell tx={tx} onRetype={onRetype} />
+                  ) : (
+                    <span
+                      style={{
+                        ...typeBadgeStyle(tx.type),
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        display: 'inline-block',
+                      }}
+                    >
+                      {TYPE_LABELS[tx.type]}
+                    </span>
+                  )}
                 </td>
                 {showRoute && (
                   <td style={{ padding: '6px 8px', textAlign: 'center' }}>

@@ -81,6 +81,14 @@ function TransactionsTab({ data, activePeriod }: TransactionsTabProps) {
     });
   }
 
+  // Inline type edit — single row only, no cascade
+  function handleRetype(id: number, type: string) {
+    patchMutation.mutate({
+      id,
+      payload: { type, apply_category_to_merchant: false, apply_routing_to_account: false },
+    });
+  }
+
   // Route modal save
   function handleRouteSave(id: number, payload: RoutePayload) {
     patchMutation.mutate({ id, payload });
@@ -122,6 +130,7 @@ function TransactionsTab({ data, activePeriod }: TransactionsTabProps) {
             transactions={transactions}
             categories={categoryNames}
             onRecategorize={handleRecategorize}
+            onRetype={handleRetype}
             onRoute={(tx) => setRoutingTx(tx)}
           />
 
