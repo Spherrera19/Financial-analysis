@@ -90,15 +90,17 @@ export function SankeyChart({ flows, onDrillDown }: SankeyChartProps) {
     sankeyLabels[node] = `${node}  ${fmtCompact(amt)}`;
   }
 
+  const isDark = labelColor === '#F3F4F6';
+
   const chartData = {
     datasets: [
       {
         data: sortedFlows.map((f) => ({ from: f.from, to: f.to, flow: f.flow })),
-        colorFrom: () => 'rgba(96, 165, 250, 0.8)',
-        colorTo: () => 'rgba(74, 222, 128, 0.8)',
+        colorFrom: () => isDark ? 'rgba(96, 165, 250, 0.95)' : 'rgba(96, 165, 250, 0.7)',
+        colorTo:   () => isDark ? 'rgba(74, 222, 128, 0.95)' : 'rgba(74, 222, 128, 0.7)',
         colorMode: 'gradient',
-        nodePadding: 25,
-        nodeWidth: 30,
+        nodePadding: 40,
+        nodeWidth: 40,
         labels: sankeyLabels,
       },
     ],
@@ -110,7 +112,7 @@ export function SankeyChart({ flows, onDrillDown }: SankeyChartProps) {
     color: labelColor,
     font: {
       family: "'Inter', sans-serif",
-      size: 12,
+      size: 13,
       weight: '500',
     },
     ...(onDrillDown && {

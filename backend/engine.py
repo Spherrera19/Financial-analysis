@@ -253,14 +253,25 @@ def build_period(
     dbt_san = round(float(abs(san_df[san_df["kind"] == "debt"]["amount"].sum())), 2)
     total_san_spending = round(nec_san + opt_san + dbt_san, 2)
 
-    def _san_cats(kind_name: str) -> list[tuple[str, float]]:
+    def _san_cats(kind_name: str, bucket_name: str) -> list[tuple[str, float]]:
         sub = san_df[san_df["kind"] == kind_name]
         series = (
             sub.groupby("category")["amount"]
             .apply(lambda x: round(float(abs(x).sum()), 2))
             .sort_values(ascending=False)
         )
-        return [(str(k), round(float(v), 2)) for k, v in series.items() if v > 0]
+        results: list[tuple[str, float]] = []
+        other_sum = 0.0
+        for i, (k, v) in enumerate(series.items()):
+            if v <= 0:
+                continue
+            if i < 6 and v >= 15.0:
+                results.append((str(k), round(float(v), 2)))
+            else:
+                other_sum += float(v)
+        if other_sum > 0:
+            results.append((f"Other {bucket_name}", round(other_sum, 2)))
+        return results
 
     sankey_rows: list[SankeyFlow] = []
     buckets = [("Necessities", nec_san), ("Optional", opt_san), ("Debt", dbt_san)]
@@ -288,9 +299,9 @@ def build_period(
                 if drawn_share > 0:
                     sankey_rows.append(SankeyFlow(from_="Savings Drawn", to=bname, flow=drawn_share))
 
-        # Tier 2 → 3: Buckets to individual Categories
+        # Tier 2 → 3: Buckets to individual Categories (long-tail → "Other <Bucket>")
         for bname, kind_name in [("Necessities", "necessity"), ("Optional", "optional"), ("Debt", "debt")]:
-            for cat_name, cat_amt in _san_cats(kind_name):
+            for cat_name, cat_amt in _san_cats(kind_name, bname):
                 sankey_rows.append(SankeyFlow(from_=bname, to=cat_name, flow=cat_amt))
 
     # ── Discretionary waterfall ────────────────────────────────────────────
