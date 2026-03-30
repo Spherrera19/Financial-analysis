@@ -13,6 +13,7 @@ from __future__ import annotations
 import csv
 import os
 import sqlite3
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from backend.classify import TYPE_CODE, classify, is_checking
@@ -210,6 +211,12 @@ def build_database(
         "SELECT id FROM ledger WHERE name='Household' LIMIT 1"
     ).fetchone()
     _household_id: int | None = _household[0] if _household else None
+    if _household_id is None:
+        print(
+            "  WARNING: Household ledger not found in DB — historical transactions "
+            "cannot be auto-cleared and will be queued for Triage instead. "
+            "Check that run_seeds() completed successfully."
+        )
 
     # ── Resolve Account Routing Map ───────────────────────────────────────────
     acct_map_rows = conn.execute("SELECT account_name, ledger_id FROM account_ledger_map").fetchall()
@@ -218,19 +225,30 @@ def build_database(
     # ── Load & insert transactions ────────────────────────────────────────────
     print("\n[ingest] Loading transactions...")
     tx_rows = _load_transactions(data_dir)
+    cutoff = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
     for row in tx_rows:
         acct_name = row.get("account", "")
 
         # Preserve original merchant string before any future renaming
         row["original_merchant"] = row.get("merchant", "")
 
-        # Route by Account Name
+        # ── Step 1: Master Default ────────────────────────────────────────────
+        # Every row lands in the Household ledger as 'cleared'. This guarantees
+        # no transaction is ever orphaned, even if seeds or the routing map fail.
+        row["ledger_id"] = _household_id
+        row["status"] = "cleared"
+
+        # ── Step 2: Routing Override ──────────────────────────────────────────
+        # If the account is explicitly mapped, promote it to the correct ledger.
+        # Status stays 'cleared' — a known account is always trusted.
         if acct_name in acct_to_ledger:
             row["ledger_id"] = acct_to_ledger[acct_name]
-            row["status"] = "cleared"
-        else:
-            # Fallback to Household, but flag for Triage UI
-            row["ledger_id"] = _household_id
+
+        # ── Step 3: Triage Horizon ────────────────────────────────────────────
+        # Unknown account (not in the routing map) AND recent (within 60 days)
+        # → flag for human review. Ledger stays Household so it stays visible
+        # in charts; only the status is demoted.
+        elif row.get("date", "") >= cutoff:
             row["status"] = "needs_review"
 
     n_tx = _insert_transactions(conn, tx_rows)
