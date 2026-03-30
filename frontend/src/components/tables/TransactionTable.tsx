@@ -5,10 +5,11 @@ import type { Transaction } from '../../types';
 
 interface TransactionTableProps {
   transactions: Transaction[];
-  maxRows?: number;
+  categories?: string[];
+  onRecategorize?: (id: number, category: string) => void;
 }
 
-type SortField = 'd' | 'm' | 'c' | 'v';
+type SortField = 'date' | 'merchant' | 'category' | 'amount';
 type SortDir = 'asc' | 'desc';
 
 interface SortState {
@@ -16,7 +17,7 @@ interface SortState {
   direction: SortDir;
 }
 
-const TYPE_LABELS: Record<Transaction['t'], string> = {
+const TYPE_LABELS: Record<Transaction['type'], string> = {
   I: 'Income',
   N: 'Necessity',
   O: 'Optional',
@@ -25,7 +26,7 @@ const TYPE_LABELS: Record<Transaction['t'], string> = {
   T: 'Other',
 };
 
-function typeBadgeStyle(t: Transaction['t']): React.CSSProperties {
+function typeBadgeStyle(t: Transaction['type']): React.CSSProperties {
   switch (t) {
     case 'I':
       return {
@@ -79,8 +80,8 @@ function SortIcon({
   );
 }
 
-function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps) {
-  const [sort, setSort] = useState<SortState>({ field: 'd', direction: 'desc' });
+function TransactionTable({ transactions, categories = [], onRecategorize = () => {} }: TransactionTableProps) {
+  const [sort, setSort] = useState<SortState>({ field: 'date', direction: 'desc' });
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -88,9 +89,9 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
     if (!q) return transactions;
     return transactions.filter(
       (tx) =>
-        tx.m.toLowerCase().includes(q) ||
-        tx.c.toLowerCase().includes(q) ||
-        tx.a.toLowerCase().includes(q),
+        tx.merchant.toLowerCase().includes(q) ||
+        tx.category.toLowerCase().includes(q) ||
+        tx.account.toLowerCase().includes(q),
     );
   }, [transactions, search]);
 
@@ -98,14 +99,14 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
     const copy = [...filtered];
     copy.sort((a, b) => {
       let cmp = 0;
-      if (sort.field === 'd') cmp = a.d.localeCompare(b.d);
-      else if (sort.field === 'm') cmp = a.m.localeCompare(b.m);
-      else if (sort.field === 'c') cmp = a.c.localeCompare(b.c);
-      else if (sort.field === 'v') cmp = a.v - b.v;
+      if (sort.field === 'date')          cmp = a.date.localeCompare(b.date);
+      else if (sort.field === 'merchant') cmp = a.merchant.localeCompare(b.merchant);
+      else if (sort.field === 'category') cmp = a.category.localeCompare(b.category);
+      else if (sort.field === 'amount')   cmp = a.amount - b.amount;
       return sort.direction === 'asc' ? cmp : -cmp;
     });
-    return maxRows !== undefined ? copy.slice(0, maxRows) : copy;
-  }, [filtered, sort, maxRows]);
+    return copy;
+  }, [filtered, sort]);
 
   const useAnimation = sorted.length <= 100;
 
@@ -118,11 +119,11 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
   }
 
   const headerCells: { label: string; field?: SortField; align?: 'right' }[] = [
-    { label: 'Date', field: 'd' },
-    { label: 'Merchant', field: 'm' },
-    { label: 'Category', field: 'c' },
+    { label: 'Date',     field: 'date' },
+    { label: 'Merchant', field: 'merchant' },
+    { label: 'Category', field: 'category' },
     { label: 'Account' },
-    { label: 'Amount', field: 'v', align: 'right' },
+    { label: 'Amount',   field: 'amount', align: 'right' },
     { label: 'Type' },
   ];
 
@@ -225,7 +226,7 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
             )}
             {sorted.map((tx, i) => (
               <tr
-                key={`${tx.d}-${tx.m}-${i}`}
+                key={`${tx.id}-${i}`}
                 className={cn(useAnimation && 'tx-row-anim')}
                 style={
                   useAnimation
@@ -241,7 +242,7 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
                 }}
               >
                 <td style={{ padding: '9px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                  {tx.d}
+                  {tx.date}
                 </td>
                 <td
                   style={{
@@ -253,19 +254,31 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {tx.m}
+                  {tx.merchant}
                 </td>
-                <td
-                  style={{
-                    padding: '9px 12px',
-                    color: 'var(--text-secondary)',
-                    maxWidth: 160,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {tx.c}
+                <td style={{ padding: '4px 12px' }}>
+                  <select
+                    value={tx.category}
+                    onChange={(e) => onRecategorize(tx.id, e.target.value)}
+                    style={{
+                      background: 'var(--bg-surface-2)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 6,
+                      color: 'var(--text-secondary)',
+                      fontSize: 12,
+                      padding: '3px 6px',
+                      cursor: 'pointer',
+                      maxWidth: 150,
+                    }}
+                  >
+                    {/* Ensure current value is always an option (e.g. legacy or uncategorized) */}
+                    {!categories.includes(tx.category) && (
+                      <option value={tx.category}>{tx.category}</option>
+                    )}
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
                 </td>
                 <td
                   style={{
@@ -277,7 +290,7 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {tx.a}
+                  {tx.account}
                 </td>
                 <td
                   style={{
@@ -285,16 +298,16 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
                     textAlign: 'right',
                     fontVariantNumeric: 'tabular-nums',
                     fontWeight: 500,
-                    color: tx.v >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+                    color: tx.amount >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {formatAmount(tx.v)}
+                  {formatAmount(tx.amount)}
                 </td>
                 <td style={{ padding: '9px 12px' }}>
                   <span
                     style={{
-                      ...typeBadgeStyle(tx.t),
+                      ...typeBadgeStyle(tx.type),
                       padding: '2px 8px',
                       borderRadius: 999,
                       fontSize: 11,
@@ -302,7 +315,7 @@ function TransactionTable({ transactions, maxRows = 50 }: TransactionTableProps)
                       display: 'inline-block',
                     }}
                   >
-                    {TYPE_LABELS[tx.t]}
+                    {TYPE_LABELS[tx.type]}
                   </span>
                 </td>
               </tr>

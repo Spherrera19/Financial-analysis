@@ -1,9 +1,11 @@
 """
-GET /api/transactions — filterable transaction drill-down endpoint.
+GET /api/transactions  — paginated, filterable transaction drill-down.
+PUT /api/transactions/{id}/category — inline recategorization with force-multiplier.
 
-Supports ?period=, ?type=, ?category= (all optional, all combinable).
-Period filter uses get_period_months() to match the exact date range shown on
-charts, preventing data leaks across period boundaries.
+Guardrails enforced:
+  #1 Ledger-scoped bulk updates (no cross-ledger contamination)
+  #3 original_merchant fallback to merchant for manual/legacy entries
+  #4 Always filter status='cleared'; needs_review rows never surface here
 """
 from __future__ import annotations
 
@@ -12,8 +14,8 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlmodel import Session, select, update
-from sqlalchemy import text
+from sqlalchemy import func, not_, update
+from sqlmodel import Session, select
 
 from backend.deps import get_db, PERIOD_KEYS
 from backend.engine import get_period_months
@@ -30,6 +32,11 @@ class TriageResolution(BaseModel):
 class TriageResolveRequest(BaseModel):
     resolutions: List[TriageResolution]
 
+
+class CategoryUpdateRequest(BaseModel):
+    category: str
+
+
 router = APIRouter()
 
 
@@ -39,22 +46,29 @@ def list_transactions(
     category:  str | None = Query(default=None),
     type:      str | None = Query(default=None, alias="type"),
     ledger_id: int | None = Query(default=None, description="Scope results to a specific ledger workspace."),
+    skip:      int        = Query(default=0,   ge=0),
+    limit:     int        = Query(default=100, ge=1, le=500),
     session: Session = Depends(get_db),
 ) -> JSONResponse:
     """
-    Return transactions matching the given filters, ordered newest-first.
+    Return paginated transactions matching the given filters, ordered newest-first.
 
-    When `type` is provided the caller's intent is explicit — the default
-    exclusion of income (I) and transfers (X) is suppressed.
-    Pass ?ledger_id=<id> to restrict results to one ledger workspace.
+    Guardrail #4: Always filters status='cleared'. Pass ?ledger_id=<id> to restrict
+    results to one ledger workspace. Excludes income (I) and transfers (X) by default
+    unless ?type= is explicitly provided.
     """
     type_ = type  # noqa: A001
 
-    clauses: list[str] = ["status = 'cleared'"]
-    params:  dict      = {}
+    # Guardrail #4: always start with cleared-only
+    stmt = select(TransactionRecord).where(TransactionRecord.status == "cleared")
 
+    # Guardrail #4: scope to ledger when provided
+    if ledger_id is not None:
+        stmt = stmt.where(TransactionRecord.ledger_id == ledger_id)
+
+    # Default: exclude income and transfers unless caller specifies a type
     if not type_:
-        clauses.append("type NOT IN ('I', 'X')")
+        stmt = stmt.where(not_(TransactionRecord.type.in_(["I", "X"])))
 
     if period is not None:
         if period not in PERIOD_KEYS:
@@ -63,36 +77,86 @@ def list_transactions(
                 detail=f"Invalid period '{period}'. Must be one of: {PERIOD_KEYS}",
             )
         months = get_period_months(period)
-        # SQLAlchemy text() requires named params; build :m0, :m1, ...
-        placeholders = ",".join(f":m{i}" for i in range(len(months)))
-        clauses.append(f"strftime('%Y-%m', date) IN ({placeholders})")
-        params.update({f"m{i}": m for i, m in enumerate(months)})
+        stmt = stmt.where(func.strftime("%Y-%m", TransactionRecord.date).in_(months))
 
     if category is not None:
-        clauses.append("category = :category")
-        params["category"] = category
+        stmt = stmt.where(TransactionRecord.category == category)
 
     if type_ is not None:
-        clauses.append("type = :type_val")
-        params["type_val"] = type_
+        stmt = stmt.where(TransactionRecord.type == type_)
 
-    # Ledger filter: ledger_id is always bound as a named parameter, never string-interpolated.
-    if ledger_id is not None:
-        clauses.append("ledger_id = :ledger_id")
-        params["ledger_id"] = ledger_id
+    stmt = stmt.order_by(TransactionRecord.date.desc()).offset(skip).limit(limit)
 
-    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    records = session.exec(stmt).all()
+    return JSONResponse(content=[
+        {
+            "id":          r.id,
+            "date":        r.date,
+            "merchant":    r.merchant,
+            "category":    r.category,
+            "account":     r.account,
+            "amount":      r.amount,
+            "owner":       r.owner,
+            "type":        r.type,
+            "is_checking": bool(r.is_checking),
+        }
+        for r in records
+    ])
 
-    sql = text(f"""
-        SELECT date, merchant, category, amount, type
-        FROM   transactions
-        {where}
-        ORDER  BY date DESC
-        LIMIT  500
-    """)
 
-    rows = session.execute(sql, params).mappings().all()
-    return JSONResponse(content=[dict(r) for r in rows])
+@router.put("/api/transactions/{transaction_id}/category")
+def update_transaction_category(
+    transaction_id: int,
+    payload: CategoryUpdateRequest,
+    session: Session = Depends(get_db),
+):
+    """
+    Recategorize a single transaction, then bulk-fix all rows from the same
+    merchant (ledger-scoped), and upsert a ClassificationRule for future ingest.
+
+    Guardrail #1: bulk update WHERE includes ledger_id — no cross-ledger contamination.
+    Guardrail #3: falls back to tx.merchant when tx.original_merchant is None/empty.
+    """
+    tx = session.get(TransactionRecord, transaction_id)
+    if not tx:
+        raise HTTPException(status_code=404, detail=f"Transaction {transaction_id} not found")
+
+    # Guardrail #3: original_merchant fallback
+    use_original = bool(tx.original_merchant)
+    merchant_key = tx.original_merchant if use_original else tx.merchant
+
+    # 1. Update the specific transaction
+    tx.category = payload.category
+    session.add(tx)
+
+    # 2. Bulk update — Guardrail #1: always scope to this ledger
+    bulk_stmt = (
+        update(TransactionRecord)
+        .where(TransactionRecord.ledger_id == tx.ledger_id)
+        .values(category=payload.category)
+    )
+    if use_original:
+        bulk_stmt = bulk_stmt.where(TransactionRecord.original_merchant == merchant_key)
+    else:
+        bulk_stmt = bulk_stmt.where(TransactionRecord.merchant == merchant_key)
+    session.execute(bulk_stmt)
+
+    # 3. Upsert ClassificationRule (learning engine)
+    rule = session.exec(
+        select(ClassificationRule).where(ClassificationRule.merchant_pattern == merchant_key)
+    ).first()
+    if not rule:
+        rule = ClassificationRule(
+            merchant_pattern=merchant_key,
+            assigned_category=payload.category,
+            match_type="exact",
+        )
+    else:
+        rule.assigned_category = payload.category
+    session.add(rule)
+
+    session.commit()
+    return {"updated_merchant": merchant_key, "category": payload.category}
 
 
 @router.get("/api/transactions/review")

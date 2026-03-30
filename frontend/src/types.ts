@@ -104,14 +104,15 @@ export interface DebtSection {
 }
 
 export interface Transaction {
-  d: string;   // date YYYY-MM-DD
-  m: string;   // merchant
-  c: string;   // category
-  a: string;   // account (last 25 chars)
-  v: number;   // amount (neg=expense, pos=income)
-  o: string;   // owner
-  t: 'I' | 'N' | 'O' | 'D' | 'X' | 'T'; // type code: Income, Necessity, Optional, Debt, transfer, other
-  k: 0 | 1;   // 1 = checking account
+  id: number;
+  date: string;
+  merchant: string;
+  category: string;
+  account: string;
+  amount: number;
+  owner: string;
+  type: 'I' | 'N' | 'O' | 'D' | 'X' | 'T';
+  is_checking: boolean;
 }
 
 export interface DashboardPayload {
@@ -120,7 +121,7 @@ export interface DashboardPayload {
   accounts: Account[];
   periods: Record<PeriodKey, PeriodData>;
   debt: DebtSection;
-  transactions: Transaction[];
+  transactions?: Transaction[];
   summaries: Record<PeriodKey, string>;
 }
 

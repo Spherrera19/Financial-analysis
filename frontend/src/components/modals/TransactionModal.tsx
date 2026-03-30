@@ -42,7 +42,7 @@ function TransactionModal({ isOpen, onClose, title, transactions }: TransactionM
     };
   }, [isOpen]);
 
-  const total = transactions.reduce((sum, tx) => sum + tx.v, 0);
+  const total = transactions.reduce((sum, tx) => sum + tx.amount, 0);
 
   return (
     <AnimatePresence>
@@ -158,7 +158,7 @@ function TransactionModal({ isOpen, onClose, title, transactions }: TransactionM
                 padding: '16px 24px',
               }}
             >
-              <TransactionTable transactions={transactions} maxRows={undefined} />
+              <TransactionTable transactions={transactions} />
             </div>
 
             {/* Footer */}
