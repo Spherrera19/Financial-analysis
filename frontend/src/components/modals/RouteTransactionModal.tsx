@@ -13,11 +13,21 @@ interface RouteTransactionModalProps {
 
 export interface RoutePayload {
   category?: string;
+  type?: string;
   ledger_id?: number;
   account?: string;
   apply_category_to_merchant: boolean;
   apply_routing_to_account: boolean;
 }
+
+const TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'N', label: 'Necessity' },
+  { value: 'O', label: 'Optional' },
+  { value: 'I', label: 'Income' },
+  { value: 'D', label: 'Debt / Repayment' },
+  { value: 'X', label: 'Excluded / Ignore' },
+  { value: 'T', label: 'Transfer' },
+];
 
 function labelStyle(): React.CSSProperties {
   return {
@@ -67,6 +77,7 @@ export function RouteTransactionModal({
   const { ledgers, selectedLedgerId } = useLedger();
 
   const [category, setCategory]   = useState('');
+  const [txType, setTxType]       = useState('');
   const [account, setAccount]     = useState('');
   const [ledgerId, setLedgerId]   = useState<number | ''>('');
   const [applyCategory, setApplyCategory] = useState(false);
@@ -76,6 +87,7 @@ export function RouteTransactionModal({
   useEffect(() => {
     if (!tx) return;
     setCategory(tx.category);
+    setTxType(tx.type);
     setAccount(tx.account);
     setApplyCategory(false);
     setApplyRouting(false);
@@ -93,8 +105,9 @@ export function RouteTransactionModal({
       apply_routing_to_account:   applyRouting,
     };
     if (category !== tx.category)  payload.category  = category;
+    if (txType   !== tx.type)      payload.type      = txType;
     if (ledgerId !== '')           payload.ledger_id = ledgerId as number;
-    if (account !== tx.account)    payload.account   = account;
+    if (account  !== tx.account)   payload.account   = account;
     onSave(tx.id, payload);
     onClose();
   }
@@ -195,6 +208,20 @@ export function RouteTransactionModal({
                 placeholder="e.g. Groceries"
                 style={inputStyle()}
               />
+            </div>
+
+            {/* Axis 1 — Type */}
+            <div>
+              <label style={labelStyle()}>Type</label>
+              <select
+                value={txType}
+                onChange={(e) => setTxType(e.target.value)}
+                style={{ ...inputStyle(), cursor: 'pointer' }}
+              >
+                {TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
 
             {/* Axis 2 — Account */}

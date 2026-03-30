@@ -46,6 +46,7 @@ class TransactionUpdateRequest(BaseModel):
       ingests route this account correctly.
     """
     category: str | None = None
+    type: str | None = None
     ledger_id: int | None = None
     account: str | None = None
     apply_category_to_merchant: bool = False
@@ -148,11 +149,20 @@ def update_transaction(
     # Guardrail #3: original_merchant fallback
     merchant_key = tx.original_merchant or tx.merchant
 
+    # ── Type (always applied to the individual row when provided) ────────────
+    if payload.type is not None:
+        tx.type = payload.type
+
     # ── Axis 1: Category ──────────────────────────────────────────────────────
     if payload.category is not None:
         tx.category = payload.category
 
         if payload.apply_category_to_merchant:
+            # Build cascade values: always category; include type if provided
+            cascade_values: dict = {"category": payload.category}
+            if payload.type is not None:
+                cascade_values["type"] = payload.type
+
             # Guardrail #1: scope to this ledger — no cross-ledger contamination
             session.execute(
                 update(TransactionRecord)
@@ -162,7 +172,7 @@ def update_transaction(
                     if tx.original_merchant
                     else TransactionRecord.merchant == merchant_key
                 )
-                .values(category=payload.category)
+                .values(**cascade_values)
             )
             # Learning engine: upsert ClassificationRule
             rule = session.exec(
