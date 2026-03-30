@@ -54,11 +54,15 @@ function fmtAmt(n: number): string {
 type SortField = 'amount' | 'date' | 'merchant'
 type SortDir   = 'asc' | 'desc'
 
+interface SortKey { field: SortField; dir: SortDir }
+
 const SORT_LABELS: Record<SortField, string> = {
   amount:   'Amount',
   date:     'Date',
   merchant: 'A–Z',
 }
+
+const DEFAULT_SORT: SortKey[] = [{ field: 'date', dir: 'desc' }]
 
 interface TransactionDrawerProps {
   filter:  DrawerFilter
@@ -71,24 +75,32 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
     queryFn:  () => fetchTransactions(filter),
   })
 
-  const [search,    setSearch]    = useState('')
-  const [sortField, setSortField] = useState<SortField>('date')
-  const [sortDir,   setSortDir]   = useState<SortDir>('desc')
+  const [search,   setSearch]   = useState('')
+  const [sortKeys, setSortKeys] = useState<SortKey[]>(DEFAULT_SORT)
 
   // Reset controls whenever a new filter opens the drawer
   useEffect(() => {
     setSearch('')
-    setSortField('date')
-    setSortDir('desc')
+    setSortKeys(DEFAULT_SORT)
   }, [filter])
 
+  // Click cycle: inactive → add (desc) → flip to asc → remove.
+  // Always keep at least one key — falling back to DEFAULT_SORT if all removed.
   function toggleSort(field: SortField) {
-    if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDir('desc')
-    }
+    setSortKeys(prev => {
+      const idx = prev.findIndex(k => k.field === field)
+      if (idx === -1) {
+        // Not active — append as new tiebreaker
+        return [...prev, { field, dir: 'desc' }]
+      }
+      if (prev[idx].dir === 'desc') {
+        // desc → asc
+        return prev.map((k, i) => i === idx ? { ...k, dir: 'asc' } : k)
+      }
+      // asc → remove; never leave the list empty
+      const next = prev.filter((_, i) => i !== idx)
+      return next.length > 0 ? next : DEFAULT_SORT
+    })
   }
 
   const displayRows = useMemo(() => {
@@ -101,13 +113,16 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
       )
     }
     return [...result].sort((a, b) => {
-      let cmp = 0
-      if (sortField === 'amount')   cmp = Math.abs(a.amount) - Math.abs(b.amount)
-      if (sortField === 'date')     cmp = a.date.localeCompare(b.date)
-      if (sortField === 'merchant') cmp = a.merchant.localeCompare(b.merchant)
-      return sortDir === 'asc' ? cmp : -cmp
+      for (const { field, dir } of sortKeys) {
+        let cmp = 0
+        if (field === 'amount')   cmp = Math.abs(a.amount) - Math.abs(b.amount)
+        if (field === 'date')     cmp = a.date.localeCompare(b.date)
+        if (field === 'merchant') cmp = a.merchant.localeCompare(b.merchant)
+        if (cmp !== 0) return dir === 'asc' ? cmp : -cmp
+      }
+      return 0
     })
-  }, [rows, search, sortField, sortDir])
+  }, [rows, search, sortKeys])
 
   const netSum = displayRows.reduce((s, r) => s + r.amount, 0)
   const hasRows = !isLoading && !isError && rows.length > 0
@@ -212,11 +227,15 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
             {/* Sort pills */}
             <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
               {(['amount', 'date', 'merchant'] as SortField[]).map(field => {
-                const active = sortField === field
+                const keyIdx = sortKeys.findIndex(k => k.field === field)
+                const active = keyIdx !== -1
+                const key    = active ? sortKeys[keyIdx] : null
+                const multi  = sortKeys.length > 1
                 return (
                   <button
                     key={field}
                     onClick={() => toggleSort(field)}
+                    title={active ? 'Click to flip direction · click again to remove' : 'Add to sort'}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 3,
                       padding: '4px 9px', borderRadius: 999,
@@ -230,9 +249,20 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
                       transition: 'border-color 0.12s, color 0.12s, background 0.12s',
                     }}
                   >
+                    {/* Priority badge — only shown when 2+ sorts are active */}
+                    {active && multi && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 14, height: 14, borderRadius: '50%',
+                        background: 'var(--accent-blue)', color: '#fff',
+                        fontSize: 9, fontWeight: 700, flexShrink: 0,
+                      }}>
+                        {keyIdx + 1}
+                      </span>
+                    )}
                     {SORT_LABELS[field]}
                     {active && (
-                      sortDir === 'desc'
+                      key!.dir === 'desc'
                         ? <ArrowDown size={10} strokeWidth={2.5} />
                         : <ArrowUp   size={10} strokeWidth={2.5} />
                     )}
