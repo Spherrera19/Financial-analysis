@@ -17,7 +17,7 @@ from pathlib import Path
 import pandas as pd
 
 from backend.classify import classify, get_minimum_payment_total, guess_interest_rate
-from backend.database import init_db
+from backend.database import engine as db_engine, init_db
 from backend.debt_engine import build_projection
 from backend.equity_engine import calculate_price_scenarios_from_history, fetch_stock_history
 from backend.models import (
@@ -37,8 +37,8 @@ from backend.models import (
 )
 
 def _get_pd_conn(conn):
-    """Extract the SQLAlchemy engine/connection if a SQLModel Session is passed."""
-    return conn.get_bind() if hasattr(conn, 'get_bind') else conn
+    """Return the SQLAlchemy engine for pd.read_sql_query (avoids deprecated get_bind warning)."""
+    return db_engine
 
 
 _TAX_WITHHOLDING = 0.30
@@ -166,7 +166,7 @@ def build_period(
 
     df = pd.read_sql_query(
         f"SELECT date, merchant, category, amount, is_checking FROM transactions"
-        f" WHERE substr(date, 1, 7) IN ({placeholders}){ledger_clause}",
+        f" WHERE substr(date, 1, 7) IN ({placeholders}) AND status = 'cleared'{ledger_clause}",
         _get_pd_conn(conn),
         params=params,
     )
@@ -462,14 +462,14 @@ def get_recent_transactions(
     if ledger_id is not None:
         df = pd.read_sql_query(
             "SELECT date, merchant, category, account, amount, owner, type, is_checking"
-            " FROM transactions WHERE ledger_id = ? ORDER BY date DESC",
+            " FROM transactions WHERE status = 'cleared' AND ledger_id = ? ORDER BY date DESC",
             _get_pd_conn(conn),
             params=[ledger_id],
         )
     else:
         df = pd.read_sql_query(
             "SELECT date, merchant, category, account, amount, owner, type, is_checking"
-            " FROM transactions ORDER BY date DESC",
+            " FROM transactions WHERE status = 'cleared' ORDER BY date DESC",
             _get_pd_conn(conn),
         )
 

@@ -13,6 +13,7 @@ class RoutingTarget(_SQLModel, table=True):  # type: ignore[call-arg]
     monthly_amount: float         = 0.0
     category:       str           = _Field(default="")
     priority:       int           = _Field(default=99)
+    ledger_id:      Optional[int] = _Field(default=1, foreign_key="ledger.id")
 
 
 class RoutingTargetInput(BaseModel):

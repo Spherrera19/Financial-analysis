@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Copy, Download, CalendarDays, ChevronDown, Check, Building2, User, LifeBuoy } from 'lucide-react';
+import { Copy, Download, CalendarDays, ChevronDown, Check, Building2, User, LifeBuoy, Inbox } from 'lucide-react';
+import { TriageModal } from '../modals/TriageModal';
 import { useQuery } from '@tanstack/react-query';
 import type { PeriodKey, UserProfile } from '../../types';
 import { useLedger } from '../../context/LedgerContext';
@@ -32,6 +33,24 @@ export function TopBar({
 }: TopBarProps) {
   const [open, setOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isTriageOpen, setIsTriageOpen] = useState(false);
+
+  const fetchPendingCount = async () => {
+    try {
+      const res = await fetch('/api/transactions/review');
+      if (res.ok) {
+        const data = await res.json();
+        setPendingCount(data.length);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingCount();
+  }, []);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const ledgerDropdownRef = useRef<HTMLDivElement>(null);
   const { ledgers, selectedLedgerId, setSelectedLedgerId } = useLedger();
@@ -277,6 +296,48 @@ export function TopBar({
 
       {/* Export buttons + as-of date */}
       <div id="tour-ai-export" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, marginLeft: 'auto' }}>
+        {/* Triage inbox badge */}
+        <button
+          onClick={() => setIsTriageOpen(true)}
+          title="Triage Inbox"
+          style={{
+            position: 'relative',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 36, height: 36,
+            borderRadius: '0.5rem',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            outline: 'none',
+            transition: 'color 0.15s ease',
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
+        >
+          <Inbox size={15} strokeWidth={2} />
+          {pendingCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: 0, right: 0,
+              transform: 'translate(25%, -25%)',
+              background: '#ef4444',
+              color: '#fff',
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              lineHeight: 1,
+              padding: '2px 4px',
+              borderRadius: 9999,
+              border: '2px solid var(--bg-surface)',
+              minWidth: 16,
+              textAlign: 'center',
+            }}>
+              {pendingCount}
+            </span>
+          )}
+        </button>
+
         {onRestartTour && (
           <button
             onClick={onRestartTour}
@@ -370,6 +431,15 @@ export function TopBar({
           Download .md
         </button>
       </div>
+
+      <TriageModal
+        isOpen={isTriageOpen}
+        onClose={() => setIsTriageOpen(false)}
+        onResolved={() => {
+          fetchPendingCount();
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }
