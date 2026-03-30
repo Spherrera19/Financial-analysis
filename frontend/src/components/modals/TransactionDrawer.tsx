@@ -84,23 +84,29 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
     setSortKeys(DEFAULT_SORT)
   }, [filter])
 
-  // Click cycle: inactive → add (desc) → flip to asc → remove.
-  // Always keep at least one key — falling back to DEFAULT_SORT if all removed.
-  function toggleSort(field: SortField) {
-    setSortKeys(prev => {
-      const idx = prev.findIndex(k => k.field === field)
-      if (idx === -1) {
-        // Not active — append as new tiebreaker
-        return [...prev, { field, dir: 'desc' }]
-      }
-      if (prev[idx].dir === 'desc') {
-        // desc → asc
-        return prev.map((k, i) => i === idx ? { ...k, dir: 'asc' } : k)
-      }
-      // asc → remove; never leave the list empty
-      const next = prev.filter((_, i) => i !== idx)
-      return next.length > 0 ? next : DEFAULT_SORT
-    })
+  // Regular click  → single-sort (replace chain); if already the sole key, toggle direction.
+  // Ctrl/Cmd+click → multi-sort: append if inactive, flip direction if active desc,
+  //                  or remove if active asc (falls back to DEFAULT_SORT if chain empties).
+  function handlePillClick(field: SortField, e: React.MouseEvent) {
+    const isMulti = e.ctrlKey || e.metaKey
+    if (isMulti) {
+      setSortKeys(prev => {
+        const idx = prev.findIndex(k => k.field === field)
+        if (idx === -1) return [...prev, { field, dir: 'desc' }]
+        if (prev[idx].dir === 'desc') return prev.map((k, i) => i === idx ? { ...k, dir: 'asc' } : k)
+        const next = prev.filter((_, i) => i !== idx)
+        return next.length > 0 ? next : DEFAULT_SORT
+      })
+    } else {
+      setSortKeys(prev => {
+        // Already the sole active key — toggle direction
+        if (prev.length === 1 && prev[0].field === field) {
+          return [{ field, dir: prev[0].dir === 'desc' ? 'asc' : 'desc' }]
+        }
+        // Otherwise replace the whole chain with just this key (desc)
+        return [{ field, dir: 'desc' }]
+      })
+    }
   }
 
   const displayRows = useMemo(() => {
@@ -225,7 +231,8 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
             </div>
 
             {/* Sort pills */}
-            <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flexShrink: 0, alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.3rem' }}>
               {(['amount', 'date', 'merchant'] as SortField[]).map(field => {
                 const keyIdx = sortKeys.findIndex(k => k.field === field)
                 const active = keyIdx !== -1
@@ -234,8 +241,10 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
                 return (
                   <button
                     key={field}
-                    onClick={() => toggleSort(field)}
-                    title={active ? 'Click to flip direction · click again to remove' : 'Add to sort'}
+                    onClick={e => handlePillClick(field, e)}
+                    title={active
+                      ? 'Click to toggle direction · ⌃/⌘+click to combine sorts'
+                      : '⌃/⌘+click to add as tiebreaker'}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 3,
                       padding: '4px 9px', borderRadius: 999,
@@ -269,6 +278,11 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
                   </button>
                 )
               })}
+              </div>
+              {/* Discoverable hint */}
+              <span style={{ fontSize: 9.5, color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
+                {sortKeys.length > 1 ? `${sortKeys.length} sorts active` : '⌃/⌘+click to combine'}
+              </span>
             </div>
           </div>
         )}
