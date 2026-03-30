@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { KpiCard, CollapsibleCard } from '../components/cards';
 import { TransactionTable } from '../components/tables';
+import { RouteTransactionModal, type RoutePayload } from '../components/modals/RouteTransactionModal';
 import { useLedger } from '../context/LedgerContext';
 import type { Transaction, DashboardPayload, PeriodKey } from '../types';
 
@@ -24,6 +25,7 @@ function TransactionsTab({ data, activePeriod }: TransactionsTabProps) {
   const { selectedLedgerId } = useLedger();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
+  const [routingTx, setRoutingTx] = useState<Transaction | null>(null);
 
   // ── Paginated transactions — Guardrail #2: ledger ID as first key discriminator ──
   const { data: transactions = [], isFetching } = useQuery<Transaction[]>({
@@ -53,22 +55,36 @@ function TransactionsTab({ data, activePeriod }: TransactionsTabProps) {
   });
   const categoryNames = categoryItems.map((c) => c.name);
 
-  // ── Recategorize mutation — invalidates all pages for this ledger ──
-  const recategorizeMutation = useMutation({
-    mutationFn: ({ id, category }: { id: number; category: string }) =>
-      fetch(`${API}/api/transactions/${id}/category`, {
-        method: 'PUT',
+  // ── Unified PATCH mutation ──
+  // Polish note #1: fuzzy base-key invalidation covers both source + destination ledger caches
+  const patchMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: RoutePayload }) =>
+      fetch(`${API}/api/transactions/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category }),
+        body: JSON.stringify(payload),
       }).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
     onSuccess: () => {
-      // Invalidate all cached pages for this ledger so retroactive row changes appear
-      queryClient.invalidateQueries({ queryKey: ['transactions', selectedLedgerId] });
+      // Fuzzy invalidation: purges ALL ledger caches, covering cross-ledger moves
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
     },
   });
+
+  // Inline category edit → always applies force-multiplier (systemic correction intent)
+  function handleRecategorize(id: number, category: string) {
+    patchMutation.mutate({
+      id,
+      payload: { category, apply_category_to_merchant: true, apply_routing_to_account: false },
+    });
+  }
+
+  // Route modal save
+  function handleRouteSave(id: number, payload: RoutePayload) {
+    patchMutation.mutate({ id, payload });
+  }
 
   const isLastPage = transactions.length < LIMIT;
 
@@ -100,12 +116,13 @@ function TransactionsTab({ data, activePeriod }: TransactionsTabProps) {
       <div id="tour-transaction-table" style={{ marginBottom: '1rem' }}>
         <CollapsibleCard
           title="Transaction Ledger"
-          helpText="The raw, searchable ledger of all imported and manual transactions. Change a category inline — it retroactively updates all transactions from the same merchant."
+          helpText="Edit categories inline or use the Route button for full 3D routing (category, profile, account). Inline edits apply the correction to all transactions from the same merchant."
         >
           <TransactionTable
             transactions={transactions}
             categories={categoryNames}
-            onRecategorize={(id, category) => recategorizeMutation.mutate({ id, category })}
+            onRecategorize={handleRecategorize}
+            onRoute={(tx) => setRoutingTx(tx)}
           />
 
           {/* Pagination Controls */}
@@ -158,6 +175,14 @@ function TransactionsTab({ data, activePeriod }: TransactionsTabProps) {
           </div>
         </CollapsibleCard>
       </div>
+
+      {/* Route Transaction Modal */}
+      <RouteTransactionModal
+        tx={routingTx}
+        categories={categoryNames}
+        onClose={() => setRoutingTx(null)}
+        onSave={handleRouteSave}
+      />
     </div>
   );
 }

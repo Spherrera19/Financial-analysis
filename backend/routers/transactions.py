@@ -1,9 +1,9 @@
 """
-GET /api/transactions  — paginated, filterable transaction drill-down.
-PUT /api/transactions/{id}/category — inline recategorization with force-multiplier.
+GET  /api/transactions          — paginated, filterable transaction drill-down.
+PATCH /api/transactions/{id}    — 3-axis Command Center routing (category, ledger, account).
 
 Guardrails enforced:
-  #1 Ledger-scoped bulk updates (no cross-ledger contamination)
+  #1 Ledger-scoped bulk category updates (no cross-ledger contamination)
   #3 original_merchant fallback to merchant for manual/legacy entries
   #4 Always filter status='cleared'; needs_review rows never surface here
 """
@@ -33,8 +33,23 @@ class TriageResolveRequest(BaseModel):
     resolutions: List[TriageResolution]
 
 
-class CategoryUpdateRequest(BaseModel):
-    category: str
+class TransactionUpdateRequest(BaseModel):
+    """
+    3-axis Command Center payload.
+
+    apply_category_to_merchant: when True, bulk-updates all cleared rows sharing
+      the same merchant (within the same ledger) to the new category, and upserts
+      the ClassificationRule so future ingests learn the correction.
+
+    apply_routing_to_account: when True, bulk-updates the ledger_id for all rows
+      sharing the same account name, and upserts the AccountLedgerMap so future
+      ingests route this account correctly.
+    """
+    category: str | None = None
+    ledger_id: int | None = None
+    account: str | None = None
+    apply_category_to_merchant: bool = False
+    apply_routing_to_account: bool = False
 
 
 router = APIRouter()
@@ -104,59 +119,109 @@ def list_transactions(
     ])
 
 
-@router.put("/api/transactions/{transaction_id}/category")
-def update_transaction_category(
+@router.patch("/api/transactions/{transaction_id}")
+def update_transaction(
     transaction_id: int,
-    payload: CategoryUpdateRequest,
+    payload: TransactionUpdateRequest,
     session: Session = Depends(get_db),
 ):
     """
-    Recategorize a single transaction, then bulk-fix all rows from the same
-    merchant (ledger-scoped), and upsert a ClassificationRule for future ingest.
+    3-axis Command Center: update category, ledger, and/or account with optional
+    force-multiplier bulk propagation controlled by explicit-intent flags.
 
-    Guardrail #1: bulk update WHERE includes ledger_id — no cross-ledger contamination.
-    Guardrail #3: falls back to tx.merchant when tx.original_merchant is None/empty.
+    Axis 1 — Category:
+      Always updates tx.category when provided.
+      apply_category_to_merchant=True → bulk-fixes history for this merchant
+      within the same ledger (Guardrail #1) and upserts ClassificationRule.
+
+    Axis 2 — Routing:
+      Always updates tx.ledger_id / tx.account when provided.
+      apply_routing_to_account=True → bulk-re-routes all rows for this account
+      to the new ledger_id and upserts AccountLedgerMap.
+
+    Guardrail #3: merchant_key falls back to tx.merchant if original_merchant is None.
     """
     tx = session.get(TransactionRecord, transaction_id)
     if not tx:
         raise HTTPException(status_code=404, detail=f"Transaction {transaction_id} not found")
 
     # Guardrail #3: original_merchant fallback
-    use_original = bool(tx.original_merchant)
-    merchant_key = tx.original_merchant if use_original else tx.merchant
+    merchant_key = tx.original_merchant or tx.merchant
 
-    # 1. Update the specific transaction
-    tx.category = payload.category
-    session.add(tx)
+    # ── Axis 1: Category ──────────────────────────────────────────────────────
+    if payload.category is not None:
+        tx.category = payload.category
 
-    # 2. Bulk update — Guardrail #1: always scope to this ledger
-    bulk_stmt = (
-        update(TransactionRecord)
-        .where(TransactionRecord.ledger_id == tx.ledger_id)
-        .values(category=payload.category)
-    )
-    if use_original:
-        bulk_stmt = bulk_stmt.where(TransactionRecord.original_merchant == merchant_key)
-    else:
-        bulk_stmt = bulk_stmt.where(TransactionRecord.merchant == merchant_key)
-    session.execute(bulk_stmt)
+        if payload.apply_category_to_merchant:
+            # Guardrail #1: scope to this ledger — no cross-ledger contamination
+            session.execute(
+                update(TransactionRecord)
+                .where(TransactionRecord.ledger_id == tx.ledger_id)
+                .where(
+                    TransactionRecord.original_merchant == merchant_key
+                    if tx.original_merchant
+                    else TransactionRecord.merchant == merchant_key
+                )
+                .values(category=payload.category)
+            )
+            # Learning engine: upsert ClassificationRule
+            rule = session.exec(
+                select(ClassificationRule).where(
+                    ClassificationRule.merchant_pattern == merchant_key
+                )
+            ).first()
+            if not rule:
+                rule = ClassificationRule(
+                    merchant_pattern=merchant_key,
+                    assigned_category=payload.category,
+                    match_type="exact",
+                )
+            else:
+                rule.assigned_category = payload.category
+            session.add(rule)
 
-    # 3. Upsert ClassificationRule (learning engine)
-    rule = session.exec(
-        select(ClassificationRule).where(ClassificationRule.merchant_pattern == merchant_key)
-    ).first()
-    if not rule:
-        rule = ClassificationRule(
-            merchant_pattern=merchant_key,
-            assigned_category=payload.category,
-            match_type="exact",
+    # ── Axis 2: Routing (ledger + account) ───────────────────────────────────
+    if payload.ledger_id is not None:
+        tx.ledger_id = payload.ledger_id
+
+    if payload.account is not None:
+        tx.account = payload.account
+
+    if payload.apply_routing_to_account and (
+        payload.ledger_id is not None or payload.account is not None
+    ):
+        routing_account = payload.account or tx.account
+        routing_ledger  = payload.ledger_id or tx.ledger_id
+
+        # Bulk re-route all transactions for this account to the new ledger
+        session.execute(
+            update(TransactionRecord)
+            .where(TransactionRecord.account == routing_account)
+            .values(ledger_id=routing_ledger)
         )
-    else:
-        rule.assigned_category = payload.category
-    session.add(rule)
 
+        # Learning engine: upsert AccountLedgerMap
+        acct_map = session.exec(
+            select(AccountLedgerMap).where(
+                AccountLedgerMap.account_name == routing_account
+            )
+        ).first()
+        if not acct_map:
+            acct_map = AccountLedgerMap(
+                account_name=routing_account,
+                ledger_id=routing_ledger,
+            )
+        else:
+            acct_map.ledger_id = routing_ledger
+        session.add(acct_map)
+
+    session.add(tx)
     session.commit()
-    return {"updated_merchant": merchant_key, "category": payload.category}
+    return {
+        "merchant_key": merchant_key,
+        "category":     tx.category,
+        "ledger_id":    tx.ledger_id,
+    }
 
 
 @router.get("/api/transactions/review")
@@ -176,16 +241,16 @@ def resolve_pending_transactions(
         if not tx:
             continue
 
-        # 1. Update the transaction
         tx.category = res.category
         tx.ledger_id = res.ledger_id
         tx.status = "cleared"
         session.add(tx)
 
-        # 2. Learn category rule (upsert) + bulk-apply to all matching transactions
         if tx.original_merchant:
             rule = session.exec(
-                select(ClassificationRule).where(ClassificationRule.merchant_pattern == tx.original_merchant)
+                select(ClassificationRule).where(
+                    ClassificationRule.merchant_pattern == tx.original_merchant
+                )
             ).first()
             if not rule:
                 rule = ClassificationRule(
@@ -197,17 +262,17 @@ def resolve_pending_transactions(
                 rule.assigned_category = res.category
             session.add(rule)
 
-            # Force-multiply: clear every transaction from this merchant
             session.execute(
                 update(TransactionRecord)
                 .where(TransactionRecord.original_merchant == tx.original_merchant)
                 .values(category=res.category, status="cleared")
             )
 
-        # 3. Learn account routing rule (upsert) + bulk-apply to all matching transactions
         if tx.account:
             acct_map = session.exec(
-                select(AccountLedgerMap).where(AccountLedgerMap.account_name == tx.account)
+                select(AccountLedgerMap).where(
+                    AccountLedgerMap.account_name == tx.account
+                )
             ).first()
             if not acct_map:
                 acct_map = AccountLedgerMap(account_name=tx.account, ledger_id=res.ledger_id)
@@ -215,7 +280,6 @@ def resolve_pending_transactions(
                 acct_map.ledger_id = res.ledger_id
             session.add(acct_map)
 
-            # Force-multiply: reroute every transaction from this account
             session.execute(
                 update(TransactionRecord)
                 .where(TransactionRecord.account == tx.account)

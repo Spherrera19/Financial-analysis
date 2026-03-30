@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { ChevronUp, ChevronDown, Search, ArrowRightLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Transaction } from '../../types';
 
@@ -7,6 +7,7 @@ interface TransactionTableProps {
   transactions: Transaction[];
   categories?: string[];
   onRecategorize?: (id: number, category: string) => void;
+  onRoute?: (tx: Transaction) => void;
 }
 
 type SortField = 'date' | 'merchant' | 'category' | 'amount';
@@ -64,13 +65,7 @@ function formatAmount(v: number): string {
   return v >= 0 ? `+$${abs}` : `-$${abs}`;
 }
 
-function SortIcon({
-  field,
-  sort,
-}: {
-  field: SortField;
-  sort: SortState;
-}) {
+function SortIcon({ field, sort }: { field: SortField; sort: SortState }) {
   if (sort.field !== field)
     return <ChevronDown size={14} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />;
   return sort.direction === 'asc' ? (
@@ -80,7 +75,68 @@ function SortIcon({
   );
 }
 
-function TransactionTable({ transactions, categories = [], onRecategorize = () => {} }: TransactionTableProps) {
+/** Inline category cell — datalist input with Escape-to-cancel */
+function CategoryCell({
+  tx,
+  onRecategorize,
+}: {
+  tx: Transaction;
+  onRecategorize: (id: number, category: string) => void;
+}) {
+  const [draft, setDraft] = useState(tx.category);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep draft in sync if the row data updates (e.g. after a bulk re-categorization refetch)
+  useMemo(() => setDraft(tx.category), [tx.category]);
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== tx.category) {
+      onRecategorize(tx.id, trimmed);
+    }
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      list="tx-categories-datalist"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commit();
+          inputRef.current?.blur();
+        }
+        if (e.key === 'Escape') {
+          // Polish note #3: reset to original value, no mutation
+          setDraft(tx.category);
+          inputRef.current?.blur();
+        }
+      }}
+      style={{
+        background: 'var(--bg-surface-2)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 6,
+        color: 'var(--text-secondary)',
+        fontSize: 12,
+        padding: '3px 6px',
+        cursor: 'text',
+        maxWidth: 150,
+        width: '100%',
+        outline: 'none',
+      }}
+    />
+  );
+}
+
+function TransactionTable({
+  transactions,
+  categories = [],
+  onRecategorize = () => {},
+  onRoute,
+}: TransactionTableProps) {
   const [sort, setSort] = useState<SortState>({ field: 'date', direction: 'desc' });
   const [search, setSearch] = useState('');
 
@@ -118,13 +174,16 @@ function TransactionTable({ transactions, categories = [], onRecategorize = () =
     );
   }
 
-  const headerCells: { label: string; field?: SortField; align?: 'right' }[] = [
+  const showRoute = Boolean(onRoute);
+
+  const headerCells: { label: string; field?: SortField; align?: 'right' | 'center' }[] = [
     { label: 'Date',     field: 'date' },
     { label: 'Merchant', field: 'merchant' },
     { label: 'Category', field: 'category' },
     { label: 'Account' },
     { label: 'Amount',   field: 'amount', align: 'right' },
     { label: 'Type' },
+    ...(showRoute ? [{ label: '' }] : []),
   ];
 
   return (
@@ -136,6 +195,13 @@ function TransactionTable({ transactions, categories = [], onRecategorize = () =
         overflow: 'hidden',
       }}
     >
+      {/* Polish note #2: single datalist node outside the row loop */}
+      <datalist id="tx-categories-datalist">
+        {categories.map((cat) => (
+          <option key={cat} value={cat} />
+        ))}
+      </datalist>
+
       {/* Search */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ position: 'relative', maxWidth: 320 }}>
@@ -185,19 +251,20 @@ function TransactionTable({ transactions, categories = [], onRecategorize = () =
                 boxShadow: '0 1px 0 var(--border-subtle)',
               }}
             >
-              {headerCells.map(({ label, field, align }) => (
+              {headerCells.map(({ label, field, align }, i) => (
                 <th
-                  key={label}
+                  key={`${label}-${i}`}
                   onClick={field ? () => toggleSort(field) : undefined}
                   style={{
                     padding: '10px 12px',
-                    textAlign: align === 'right' ? 'right' : 'left',
+                    textAlign: align === 'right' ? 'right' : align === 'center' ? 'center' : 'left',
                     color: 'var(--text-secondary)',
                     fontWeight: 500,
                     fontSize: 12,
                     cursor: field ? 'pointer' : 'default',
                     userSelect: 'none',
                     whiteSpace: 'nowrap',
+                    width: label === '' ? 40 : undefined,
                   }}
                 >
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -212,7 +279,7 @@ function TransactionTable({ transactions, categories = [], onRecategorize = () =
             {sorted.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={headerCells.length}
                   style={{
                     textAlign: 'center',
                     padding: '32px 0',
@@ -228,14 +295,9 @@ function TransactionTable({ transactions, categories = [], onRecategorize = () =
               <tr
                 key={`${tx.id}-${i}`}
                 className={cn(useAnimation && 'tx-row-anim')}
-                style={
-                  useAnimation
-                    ? { animationDelay: `${i * 18}ms` }
-                    : undefined
-                }
+                style={useAnimation ? { animationDelay: `${i * 18}ms` } : undefined}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLTableRowElement).style.background =
-                    'var(--bg-surface-2)';
+                  (e.currentTarget as HTMLTableRowElement).style.background = 'var(--bg-surface-2)';
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLTableRowElement).style.background = 'transparent';
@@ -257,28 +319,7 @@ function TransactionTable({ transactions, categories = [], onRecategorize = () =
                   {tx.merchant}
                 </td>
                 <td style={{ padding: '4px 12px' }}>
-                  <select
-                    value={tx.category}
-                    onChange={(e) => onRecategorize(tx.id, e.target.value)}
-                    style={{
-                      background: 'var(--bg-surface-2)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 6,
-                      color: 'var(--text-secondary)',
-                      fontSize: 12,
-                      padding: '3px 6px',
-                      cursor: 'pointer',
-                      maxWidth: 150,
-                    }}
-                  >
-                    {/* Ensure current value is always an option (e.g. legacy or uncategorized) */}
-                    {!categories.includes(tx.category) && (
-                      <option value={tx.category}>{tx.category}</option>
-                    )}
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                  <CategoryCell tx={tx} onRecategorize={onRecategorize} />
                 </td>
                 <td
                   style={{
@@ -318,6 +359,36 @@ function TransactionTable({ transactions, categories = [], onRecategorize = () =
                     {TYPE_LABELS[tx.type]}
                   </span>
                 </td>
+                {showRoute && (
+                  <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                    <button
+                      onClick={() => onRoute!(tx)}
+                      title="Route transaction"
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 6,
+                        padding: '4px 6px',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'color 0.15s, border-color 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent-blue)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-blue)';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-subtle)';
+                      }}
+                    >
+                      <ArrowRightLeft size={13} />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
