@@ -1,5 +1,7 @@
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import { Search, ArrowUp, ArrowDown, X } from 'lucide-react'
 import type { DrawerFilter } from '../../types'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -49,6 +51,15 @@ function fmtAmt(n: number): string {
   return (n < 0 ? '−' : '+') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+type SortField = 'amount' | 'date' | 'merchant'
+type SortDir   = 'asc' | 'desc'
+
+const SORT_LABELS: Record<SortField, string> = {
+  amount:   'Amount',
+  date:     'Date',
+  merchant: 'A–Z',
+}
+
 interface TransactionDrawerProps {
   filter:  DrawerFilter
   onClose: () => void
@@ -60,17 +71,53 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
     queryFn:  () => fetchTransactions(filter),
   })
 
-  const netSum = rows.reduce((s, r) => s + r.amount, 0)
+  const [search,    setSearch]    = useState('')
+  const [sortField, setSortField] = useState<SortField>('date')
+  const [sortDir,   setSortDir]   = useState<SortDir>('desc')
+
+  // Reset controls whenever a new filter opens the drawer
+  useEffect(() => {
+    setSearch('')
+    setSortField('date')
+    setSortDir('desc')
+  }, [filter])
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+  }
+
+  const displayRows = useMemo(() => {
+    let result = rows
+    const q = search.trim().toLowerCase()
+    if (q) {
+      result = result.filter(r =>
+        r.merchant.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q)
+      )
+    }
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      if (sortField === 'amount')   cmp = Math.abs(a.amount) - Math.abs(b.amount)
+      if (sortField === 'date')     cmp = a.date.localeCompare(b.date)
+      if (sortField === 'merchant') cmp = a.merchant.localeCompare(b.merchant)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [rows, search, sortField, sortDir])
+
+  const netSum = displayRows.reduce((s, r) => s + r.amount, 0)
+  const hasRows = !isLoading && !isError && rows.length > 0
 
   return (
     <>
-      {/* Backdrop — click to close */}
+      {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 299,
-          background: 'rgba(0,0,0,0.35)',
-        }}
+        style={{ position: 'fixed', inset: 0, zIndex: 299, background: 'rgba(0,0,0,0.35)' }}
       />
 
       {/* Drawer panel */}
@@ -107,12 +154,94 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
             onClick={onClose}
             style={{
               background: 'transparent', border: 'none', cursor: 'pointer',
-              color: 'var(--text-muted)', fontSize: '1.25rem', lineHeight: 1,
-              padding: '0.25rem', borderRadius: '0.375rem',
+              color: 'var(--text-muted)', padding: '0.25rem', borderRadius: '0.375rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
             aria-label="Close"
-          >✕</button>
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
         </div>
+
+        {/* Controls strip — only shown when there are rows to interact with */}
+        {hasRows && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.625rem 1rem',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface-2)',
+            flexShrink: 0,
+          }}>
+            {/* Search input */}
+            <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+              <Search
+                size={12}
+                style={{
+                  position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)', pointerEvents: 'none',
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Search merchant or category…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{
+                  width: '100%', paddingLeft: 26, paddingRight: search ? 26 : 8,
+                  paddingTop: 5, paddingBottom: 5,
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6, color: 'var(--text-primary)',
+                  fontSize: 12, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', padding: 0, display: 'flex',
+                  }}
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+
+            {/* Sort pills */}
+            <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+              {(['amount', 'date', 'merchant'] as SortField[]).map(field => {
+                const active = sortField === field
+                return (
+                  <button
+                    key={field}
+                    onClick={() => toggleSort(field)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 3,
+                      padding: '4px 9px', borderRadius: 999,
+                      border: `1px solid ${active ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
+                      background: active
+                        ? 'color-mix(in srgb, var(--accent-blue) 12%, transparent)'
+                        : 'transparent',
+                      color: active ? 'var(--accent-blue)' : 'var(--text-muted)',
+                      fontSize: 11, fontWeight: active ? 600 : 400,
+                      cursor: 'pointer', whiteSpace: 'nowrap',
+                      transition: 'border-color 0.12s, color 0.12s, background 0.12s',
+                    }}
+                  >
+                    {SORT_LABELS[field]}
+                    {active && (
+                      sortDir === 'desc'
+                        ? <ArrowDown size={10} strokeWidth={2.5} />
+                        : <ArrowUp   size={10} strokeWidth={2.5} />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -131,7 +260,12 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
               No transactions found for this filter.
             </div>
           )}
-          {rows.map((row, i) => (
+          {!isLoading && !isError && rows.length > 0 && displayRows.length === 0 && (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              No results for "<strong>{search}</strong>"
+            </div>
+          )}
+          {displayRows.map((row, i) => (
             <div
               key={i}
               style={{
@@ -168,6 +302,7 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
               {/* Amount */}
               <span style={{
                 fontSize: '0.875rem', fontWeight: 600, whiteSpace: 'nowrap',
+                fontVariantNumeric: 'tabular-nums',
                 color: row.amount >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
               }}>
                 {fmtAmt(row.amount)}
@@ -185,7 +320,12 @@ export function TransactionDrawer({ filter, onClose }: TransactionDrawerProps) {
             flexShrink: 0,
             fontSize: '0.8125rem', color: 'var(--text-secondary)',
           }}>
-            <span>{rows.length} transaction{rows.length !== 1 ? 's' : ''}</span>
+            <span>
+              {search
+                ? `${displayRows.length} of ${rows.length} transaction${rows.length !== 1 ? 's' : ''}`
+                : `${rows.length} transaction${rows.length !== 1 ? 's' : ''}`
+              }
+            </span>
             <span style={{ fontWeight: 700, color: netSum >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
               Net: {fmtAmt(netSum)}
             </span>
