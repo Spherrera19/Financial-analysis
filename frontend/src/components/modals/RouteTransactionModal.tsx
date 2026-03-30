@@ -136,7 +136,7 @@ export function RouteTransactionModal({
           initial={{ opacity: 0, y: 24, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 24, scale: 0.97 }}
-          transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           onClick={(e) => e.stopPropagation()}
           style={{
             width: '100%', maxWidth: 480,

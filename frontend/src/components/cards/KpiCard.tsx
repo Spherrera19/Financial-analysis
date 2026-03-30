@@ -72,6 +72,7 @@ export function KpiCard({
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 40 }}
+        className="tabular-data"
         style={{
           fontSize: '2rem',
           fontWeight: 700,

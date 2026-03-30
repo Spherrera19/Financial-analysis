@@ -154,21 +154,19 @@ def build_period(
     period_months = get_period_months(period_key)
     ms = set(period_months)
 
-    placeholders = ",".join("?" * len(period_months))
-    params: list = list(period_months)
+    placeholders = ",".join(f":m{i}" for i in range(len(period_months)))
+    params_dict = {f"m{i}": m for i, m in enumerate(period_months)}
 
-    # Ledger filter: append clause + param only when a specific ledger is requested.
-    # The ledger_id value travels as a bound ? parameter, not as an f-string substitution.
     ledger_clause = ""
     if ledger_id is not None:
-        ledger_clause = " AND ledger_id = ?"
-        params.append(ledger_id)
+        ledger_clause = " AND ledger_id = :ledger_id"
+        params_dict["ledger_id"] = ledger_id
 
     df = pd.read_sql_query(
         f"SELECT date, merchant, category, amount, is_checking FROM transactions"
-        f" WHERE substr(date, 1, 7) IN ({placeholders}) AND status = 'cleared'{ledger_clause}",
+        f" WHERE status = 'cleared' AND substr(date, 1, 7) IN ({placeholders}){ledger_clause}",
         _get_pd_conn(conn),
-        params=params,
+        params=params_dict,
     )
 
     if df.empty:
@@ -242,25 +240,58 @@ def build_period(
     src_labels = [str(k)[:50] for k in src_series.index]
     src_values = [round(float(v), 2) for v in src_series.values]
 
-    # Sankey — mirrors monolith exactly
-    total_spending = nec_total + opt_total + dbt_total + oth_total
-    net_savings    = kpi_income - total_spending
-    src_acc        = dict(zip(src_labels, src_values))
+    # Sankey — 3-Tier Waterfall (Income → Buckets → Categories)
+    # Exclude transfers (X), other (T), and Credit Card Payment explicitly
+    san_df = df[
+        df["kind"].isin(["necessity", "optional", "debt"]) &
+        (df["amount"] < 0) &
+        (df["category"] != "Credit Card Payment")
+    ]
+
+    nec_san = round(float(abs(san_df[san_df["kind"] == "necessity"]["amount"].sum())), 2)
+    opt_san = round(float(abs(san_df[san_df["kind"] == "optional"]["amount"].sum())), 2)
+    dbt_san = round(float(abs(san_df[san_df["kind"] == "debt"]["amount"].sum())), 2)
+    total_san_spending = round(nec_san + opt_san + dbt_san, 2)
+
+    def _san_cats(kind_name: str) -> list[tuple[str, float]]:
+        sub = san_df[san_df["kind"] == kind_name]
+        series = (
+            sub.groupby("category")["amount"]
+            .apply(lambda x: round(float(abs(x).sum()), 2))
+            .sort_values(ascending=False)
+        )
+        return [(str(k), round(float(v), 2)) for k, v in series.items() if v > 0]
 
     sankey_rows: list[SankeyFlow] = []
-    if kpi_income > 0:
-        for src_name, src_amount in sorted(src_acc.items(), key=lambda x: -x[1])[:6]:
-            ratio = src_amount / kpi_income
-            if nec_total > 0:
-                sankey_rows.append(SankeyFlow(from_=src_name, to="Necessities",   flow=round(ratio * nec_total, 2)))
-            if opt_total > 0:
-                sankey_rows.append(SankeyFlow(from_=src_name, to="Optional",      flow=round(ratio * opt_total, 2)))
-            if dbt_total > 0:
-                sankey_rows.append(SankeyFlow(from_=src_name, to="Debt",          flow=round(ratio * dbt_total, 2)))
-            if oth_total > 0:
-                sankey_rows.append(SankeyFlow(from_=src_name, to="Other",         flow=round(ratio * oth_total, 2)))
-            if net_savings > 0:
-                sankey_rows.append(SankeyFlow(from_=src_name, to="Net / Savings", flow=round(ratio * net_savings, 2)))
+    buckets = [("Necessities", nec_san), ("Optional", opt_san), ("Debt", dbt_san)]
+
+    if kpi_income > 0 or total_san_spending > 0:
+        # Tier 1 → 2: Income (and optionally Savings Drawn) to Buckets
+        if kpi_income >= total_san_spending:
+            # Surplus: income covers all spending; route remainder to Net Savings
+            for bname, bamt in buckets:
+                if bamt > 0:
+                    sankey_rows.append(SankeyFlow(from_="Income", to=bname, flow=bamt))
+            leftover = round(kpi_income - total_san_spending, 2)
+            if leftover > 0:
+                sankey_rows.append(SankeyFlow(from_="Income", to="Net Savings", flow=leftover))
+        else:
+            # Deficit: Income covers proportional share; Savings Drawn fills the gap
+            for bname, bamt in buckets:
+                if bamt <= 0:
+                    continue
+                ratio = bamt / total_san_spending
+                income_share = round(kpi_income * ratio, 2)
+                drawn_share  = round(bamt - income_share, 2)
+                if income_share > 0:
+                    sankey_rows.append(SankeyFlow(from_="Income",        to=bname, flow=income_share))
+                if drawn_share > 0:
+                    sankey_rows.append(SankeyFlow(from_="Savings Drawn", to=bname, flow=drawn_share))
+
+        # Tier 2 → 3: Buckets to individual Categories
+        for bname, kind_name in [("Necessities", "necessity"), ("Optional", "optional"), ("Debt", "debt")]:
+            for cat_name, cat_amt in _san_cats(kind_name):
+                sankey_rows.append(SankeyFlow(from_=bname, to=cat_name, flow=cat_amt))
 
     # ── Discretionary waterfall ────────────────────────────────────────────
     _n_months   = len(period_months)
@@ -462,9 +493,9 @@ def get_recent_transactions(
     if ledger_id is not None:
         df = pd.read_sql_query(
             "SELECT date, merchant, category, account, amount, owner, type, is_checking"
-            " FROM transactions WHERE status = 'cleared' AND ledger_id = ? ORDER BY date DESC",
+            " FROM transactions WHERE status = 'cleared' AND ledger_id = :ledger_id ORDER BY date DESC",
             _get_pd_conn(conn),
-            params=[ledger_id],
+            params={"ledger_id": ledger_id},
         )
     else:
         df = pd.read_sql_query(
